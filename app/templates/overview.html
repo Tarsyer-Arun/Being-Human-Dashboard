@@ -282,10 +282,12 @@ Being Human Dashboard
     const ctx = canvas.getContext('2d');
     if (trendChart) trendChart.destroy();
     const data     = trendData.visitors;
+    const gcData   = trendData.group_counts || [];
     const color    = '#DA291C';
+    const GC_COLOR = '#2563eb';
     const dispLabels = trendData.labels.map(l => l.slice(5));
     const grad = lineGradient(ctx, color, canvas.offsetHeight || 220);
-    const yRange = dynamicYRange(data);
+    const yRange = dynamicYRange([...data, ...gcData]);
 
     trendChart = new Chart(ctx, {
       type: 'line',
@@ -307,12 +309,26 @@ Being Human Dashboard
           pointHoverBackgroundColor: color,
           borderWidth: 2.5,
           borderSkipped: false,
+        }, {
+          label: 'Group Count',
+          data: gcData,
+          borderColor: GC_COLOR,
+          backgroundColor: GC_COLOR,
+          fill: false,
+          tension: 0.42,
+          pointRadius: gcData.length > 20 ? 2 : 4,
+          pointBackgroundColor: GC_COLOR,
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1.5,
+          pointHitRadius: 14,
+          pointHoverRadius: 7,
+          borderWidth: 2.5,
         }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
         animation: { duration: 700, easing: 'easeOutQuart' },
-        plugins: { legend: { display: false } },
+        plugins: { legend: { display: true, position: 'top', labels: { font: { size: 10 }, boxWidth: 10, padding: 8, usePointStyle: true } } },
         scales: {
           x: {
             grid: { display: false },

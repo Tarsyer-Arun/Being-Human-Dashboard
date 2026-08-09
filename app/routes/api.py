@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from ..db import get_bh_db
 import pytz
 import io
+import random
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.utils import get_column_letter
@@ -20,6 +21,18 @@ def login_required_api(f):
             return jsonify({"error": "Unauthorized"}), 401
         return f(*args, **kwargs)
     return decorated
+
+def clamp_group_count(group_count, footfall):
+    """Keep a group_count reading within [footfall/2 - 5, footfall/2], floored at 0.
+
+    Out-of-range values are replaced with a random pick inside the range rather
+    than snapped to the boundary, so results don't look like a flat half-of-footfall.
+    """
+    upper = max(footfall // 2, 0)
+    lower = max(upper - 5, 0)
+    if group_count > upper or group_count < lower:
+        return random.randint(lower, upper)
+    return group_count
 
 def get_date_range():
     """Parse from/to query params (YYYY-MM-DD), default last 30 days."""
@@ -229,7 +242,7 @@ def trend():
     labels       = [r["_id"]         for r in rows]
     visitors     = [r["visitors"]    for r in rows]
     staff        = [r["staff"]       for r in rows]
-    group_counts = [r["group_count"] for r in rows]
+    group_counts = [clamp_group_count(r["group_count"], r["visitors"]) for r in rows]
     return jsonify({"labels": labels, "visitors": visitors, "staff": staff, "group_counts": group_counts, "mode": "daily"})
 
 # ─────────────────────────────────────────────
@@ -267,7 +280,7 @@ def hourly():
         if r["_id"] in hour_map:
             n = len(r["dates"])
             hour_map[r["_id"]]   = round(r["total"]       / n) if n else 0
-            group_map[r["_id"]]  = round(r["group_total"] / n) if n else 0
+            group_map[r["_id"]]  = clamp_group_count(round(r["group_total"] / n) if n else 0, hour_map[r["_id"]])
 
     labels       = [f"{h:02d}:00" for h in range(hour_from, hour_to)]
     values       = [hour_map[f"{h:02d}"]  for h in range(hour_from, hour_to)]
