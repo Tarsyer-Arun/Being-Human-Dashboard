@@ -1,0 +1,601 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block page_title %}<i class="fa-solid fa-gauge-high" style="color:var(--primary);margin-right:8px"></i>Overview —
+Being Human Dashboard
+
+{% endblock %}
+
+{% block content %}
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <label>From</label>
+  <input type="date" id="dateFrom" />
+  <label>To</label>
+  <input type="date" id="dateTo" />
+  <label>Hour</label>
+  <select id="hourFrom"
+    style="padding:5px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;color:#374151;"></select>
+  <span style="color:var(--muted);font-size:12px;">–</span>
+  <select id="hourTo"
+    style="padding:5px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;color:#374151;"></select>
+  <button class="btn btn-primary" onclick="applyFilters()"><i class="fa-solid fa-magnifying-glass"></i> Apply</button>
+  <button class="quick-btn" onclick="setRange(0)">Today</button>
+  <button class="quick-btn" onclick="setYesterday()">Yesterday</button>
+  <button class="quick-btn" onclick="setRange(6)">7 Days</button>
+  <button class="quick-btn active" id="btn30" onclick="setRange(29)">30 Days</button>
+  <button class="quick-btn" onclick="setRange(89)">90 Days</button>
+  <div style="margin-left:auto;display:flex;gap:8px;">
+    <button class="btn btn-outline" onclick="downloadExcel('footfall')"
+      style="font-size:12px;display:flex;align-items:center;gap:6px;white-space:nowrap;">
+      <i class="fa-solid fa-file-excel" style="color:#217346;"></i> Export Footfall
+    </button>
+  </div>
+</div>
+
+<div class="content" id="mainContent" style="display:flex;flex-direction:column;">
+
+  <!-- Row 1: Period Footfall Chips -->
+  <div style="margin-bottom:10px;flex-shrink:0;">
+    <div
+      style="font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;">
+      <i class="fa-solid fa-users" style="font-size:10px;"></i> Footfall — Period Comparison
+    </div>
+    <div class="chip-row" id="periodChips">
+      <div class="spinner" style="width:18px;height:18px;border-width:2px;margin:0;"></div>
+    </div>
+  </div>
+
+  <!-- Row 2: KPI Summary Chips -->
+  <div style="margin-bottom:8px;flex-shrink:0;">
+    <div
+      style="font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;">
+      <i class="fa-solid fa-chart-pie" style="font-size:10px;"></i> Visitor Breakdown — Selected Period
+    </div>
+    <div class="chip-row" id="kpiChips">
+      <div class="spinner" style="width:18px;height:18px;border-width:2px;margin:0;"></div>
+    </div>
+  </div>
+
+
+  <!-- Charts: two equal rows -->
+  <div style="flex:1;min-height:400px;display:flex;flex-direction:column;gap:12px;">
+
+    <!-- Row A: Daily Trend + Visitor Breakdown -->
+    <div style="display:grid;grid-template-columns:1.8fr 1fr;gap:12px;flex:1;min-height:0;">
+
+      <div class="card" style="display:flex;flex-direction:column;min-height:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div class="card-title" style="margin:0;" id="trendTitle">
+            <i class="fa-solid fa-chart-line" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>
+            Daily Visitor Trend
+          </div>
+        </div>
+        <div style="flex:1;position:relative;min-height:0;">
+          <canvas id="trendChart"
+            style="position:absolute;inset:0;width:100%!important;height:100%!important;"></canvas>
+        </div>
+      </div>
+
+      <div class="card" style="display:flex;flex-direction:column;min-height:0;">
+        <div class="card-title">
+          <i class="fa-solid fa-chart-pie" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>
+          Visitor Breakdown
+          <span id="breakdownNote" style="font-size:9px;font-weight:400;color:var(--muted);margin-left:4px;"></span>
+        </div>
+        <div style="flex:1;position:relative;min-height:0;">
+          <canvas id="breakdownChart"
+            style="position:absolute;inset:0;width:100%!important;height:100%!important;"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Row B: Avg Hourly + Age Group -->
+    <div style="display:grid;grid-template-columns:1.8fr 1fr;gap:12px;flex:1;min-height:0;">
+
+      <div class="card" style="display:flex;flex-direction:column;min-height:0;">
+        <div class="card-title" id="hourlyTitle">
+          <i class="fa-solid fa-clock" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>
+          Avg Hourly Footfall
+        </div>
+        <div style="flex:1;position:relative;min-height:0;">
+          <canvas id="hourlyChart"
+            style="position:absolute;inset:0;width:100%!important;height:100%!important;"></canvas>
+        </div>
+      </div>
+
+      <div class="card" style="display:flex;flex-direction:column;min-height:0;">
+        <div class="card-title">
+          <i class="fa-solid fa-person" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>
+          Age Group
+        </div>
+        <div style="flex:1;position:relative;min-height:0;">
+          <canvas id="ageChart" style="position:absolute;inset:0;width:100%!important;height:100%!important;"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /charts-wrapper -->
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ── Dynamic Y range (avoid flat lines when values cluster near each other) ───
+  function dynamicYRange(values, padFraction = 0.25) {
+    const valid = (values || []).filter(v => v !== null && v !== undefined && !isNaN(v) && v > 0);
+    if (!valid.length) return {};
+    const lo = Math.min(...valid), hi = Math.max(...valid);
+    const span = hi - lo, mean = valid.reduce((a, b) => a + b, 0) / valid.length;
+    const eff  = span < mean * 0.05 ? mean * 0.3 : span;
+    const pad  = eff * padFraction;
+    return { min: Math.max(0, lo - pad), max: hi + pad };
+  }
+
+  // ── Gradient helper (vertical, for line chart fills) ─────────────────────────
+  function lineGradient(ctx, color, height) {
+    const g = ctx.createLinearGradient(0, 0, 0, height);
+    g.addColorStop(0,   color + '55');
+    g.addColorStop(0.6, color + '18');
+    g.addColorStop(1,   color + '00');
+    return g;
+  }
+
+  // ── Chart state ──────────────────────────────────────────────────────────────
+  let trendData = { labels: [], visitors: [], staff: [], mode: 'daily' };
+  let ageData = [];
+  let activeTrendMode = 'visitors';
+  let trendChart, breakdownChart, hourlyChart, ageChart;
+
+  // ── Date helpers ─────────────────────────────────────────────────────────────
+  function todayStr() { return new Date().toISOString().slice(0, 10); }
+  function offsetDate(days) {
+    const d = new Date(); d.setDate(d.getDate() - days);
+    return d.toISOString().slice(0, 10);
+  }
+  function setRange(daysBack) {
+    document.getElementById('dateFrom').value = offsetDate(daysBack);
+    document.getElementById('dateTo').value = todayStr();
+    document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    loadAll();
+  }
+  function setYesterday() {
+    const y = offsetDate(1);
+    document.getElementById('dateFrom').value = y;
+    document.getElementById('dateTo').value = y;
+    document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    loadAll();
+  }
+  function applyFilters() {
+    document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+    loadAll();
+  }
+  function downloadExcel(type) {
+    const from = document.getElementById('dateFrom').value;
+    const to = document.getElementById('dateTo').value;
+    const storeCode = window.currentStoreCode || 'BH-01';
+    window.location.href = `/api/export-footfall?from=${from}&to=${to}&store_code=${storeCode}`;
+  }
+  function getDateParams() {
+    const from = document.getElementById('dateFrom').value;
+    const to = document.getElementById('dateTo').value;
+    const hourFrom = document.getElementById('hourFrom').value;
+    const hourTo = document.getElementById('hourTo').value;
+    const storeCode = window.currentStoreCode || 'BH-01';
+    return `from=${from}&to=${to}&hour_from=${hourFrom}&hour_to=${hourTo}&store_code=${storeCode}`;
+  }
+  function allParams() { return getDateParams(); }
+
+
+  // ── Overview (KPIs + breakdown) ───────────────────────────────────────────────
+  async function loadOverview() {
+    try {
+      const res = await fetch(`/api/overview?${allParams()}`);
+      const d = await res.json();
+      renderPeriodChips(d.periods);
+      renderKpiChips(d);
+      renderBreakdownChart(d.breakdown);
+    } catch (e) {
+      document.getElementById('periodChips').innerHTML =
+        '<span style="color:var(--red);font-size:12px;">Failed to load</span>';
+    }
+  }
+  // ── Animated counters ────────────────────────────────────────────────────────
+  // Animates from the element's CURRENT displayed value to the new target, and
+  // cancels any in-flight animation on that element first (via a token check)
+  // so rapid filter clicks (Today -> Yesterday -> ...) don't race/flicker.
+  function animateValue(el, target) {
+    target = target || 0;
+    const current = parseInt((el.textContent || '').replace(/[^\d-]/g, ''), 10);
+    const startVal = isNaN(current) ? 0 : current;
+    const token = (el._animToken = (el._animToken || 0) + 1);
+    if (startVal === target) { el.textContent = target.toLocaleString(); return; }
+    const duration = 450;
+    const start = performance.now();
+    function tick(now) {
+      if (el._animToken !== token) return; // superseded by a newer animation
+      const p = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+      el.textContent = Math.round(startVal + (target - startVal) * eased).toLocaleString();
+      if (p < 1) requestAnimationFrame(tick);
+      else el.textContent = target.toLocaleString();
+    }
+    requestAnimationFrame(tick);
+  }
+
+  const PERIOD_LABELS = {
+    today: { label: 'Today', icon: 'fa-sun', color: 'chip-blue' },
+    yesterday: { label: 'Yesterday', icon: 'fa-clock-rotate-left', color: 'chip-blue' },
+    this_week: { label: 'This Week', icon: 'fa-calendar-week', color: 'chip-teal' },
+    last_week: { label: 'Last Week', icon: 'fa-calendar-minus', color: 'chip-teal' },
+    this_month: { label: 'This Month', icon: 'fa-calendar', color: 'chip-green' },
+    last_month: { label: 'Last Month', icon: 'fa-calendar-xmark', color: 'chip-green' },
+  };
+  function renderPeriodChips(periods) {
+    const el = document.getElementById('periodChips');
+    if (!el.dataset.built) {
+      let html = '';
+      Object.entries(PERIOD_LABELS).forEach(([key, { label, icon, color }], i) => {
+        html += `<span class="chip ${color}" style="animation-delay:${i * 0.04}s"><i class="fa-solid ${icon}" style="font-size:10px;"></i> ${label}: <strong id="pc-${key}">0</strong></span>`;
+      });
+      el.innerHTML = html;
+      el.dataset.built = '1';
+    }
+    Object.keys(PERIOD_LABELS).forEach(key => {
+      animateValue(document.getElementById(`pc-${key}`), periods[key] || 0);
+    });
+  }
+  function renderKpiChips(d) {
+    const b = d.breakdown || {};
+    const total = d.total_visitors || 0;
+    const el = document.getElementById('kpiChips');
+    if (!el.dataset.built) {
+      el.innerHTML = `
+      <span class="chip chip-blue"><i class="fa-solid fa-users" style="font-size:10px;"></i> Visitors: <strong id="kc-total">0</strong></span>
+      <span class="chip chip-teal" style="animation-delay:0.04s"><i class="fa-solid fa-mars" style="font-size:10px;"></i> Male: <strong id="kc-male">0</strong></span>
+      <span class="chip chip-purple" style="animation-delay:0.08s"><i class="fa-solid fa-venus" style="font-size:10px;"></i> Female: <strong id="kc-female">0</strong></span>
+    `;
+      el.dataset.built = '1';
+    }
+    animateValue(document.getElementById('kc-total'), total);
+    animateValue(document.getElementById('kc-male'), b.male || 0);
+    animateValue(document.getElementById('kc-female'), b.female || 0);
+  }
+
+  // ── Trend ─────────────────────────────────────────────────────────────────────
+  async function loadTrend() {
+    try {
+      const res = await fetch(`/api/trend?${allParams()}`);
+      trendData = await res.json();
+      const titleEl = document.getElementById('trendTitle');
+      titleEl.innerHTML = `<i class="fa-solid fa-chart-line" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>Daily Visitor Trend`;
+      renderTrendChart(activeTrendMode);
+    } catch (e) { }
+  }
+  function renderTrendChart(mode) {
+    const canvas = document.getElementById('trendChart');
+    const ctx = canvas.getContext('2d');
+    if (trendChart) trendChart.destroy();
+    const data     = trendData.visitors;
+    const color    = '#DA291C';
+    const dispLabels = trendData.labels.map(l => l.slice(5));
+    const grad = lineGradient(ctx, color, canvas.offsetHeight || 220);
+    const yRange = dynamicYRange(data);
+
+    trendChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: dispLabels,
+        datasets: [{
+          label: 'Visitors',
+          data,
+          borderColor: color,
+          backgroundColor: grad,
+          fill: true,
+          tension: 0.42,
+          pointRadius: data.length > 20 ? 2 : 4,
+          pointBackgroundColor: color,
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1.5,
+          pointHitRadius: 14,
+          pointHoverRadius: 7,
+          pointHoverBackgroundColor: color,
+          borderWidth: 2.5,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 700, easing: 'easeOutQuart' },
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { font: { size: 10 }, maxTicksLimit: 10, color: '#8492a6' }
+          },
+          y: {
+            grid: { color: '#f0f0f0' },
+            ticks: { font: { size: 10 }, color: '#8492a6' },
+            ...yRange,
+          }
+        },
+      }
+    });
+  }
+
+  // ── Breakdown Donut ───────────────────────────────────────────────────────────
+  function renderBreakdownChart(b) {
+    const ctx = document.getElementById('breakdownChart').getContext('2d');
+    if (breakdownChart) breakdownChart.destroy();
+    const BASE = ['#DA291C', '#7c3aed'];
+    const male = b.male || 0;
+    const female = b.female || 0;
+
+    document.getElementById('breakdownNote').textContent = '';
+
+    breakdownChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Male', 'Female'],
+        datasets: [{ data: [male, female], backgroundColor: BASE, borderWidth: 2.5, borderColor: '#fff', hoverOffset: 6 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 700, easing: 'easeOutQuart' },
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, boxWidth: 10, usePointStyle: true } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const tot = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = tot ? ((ctx.raw / tot) * 100).toFixed(1) : 0;
+                return ` ${ctx.label}: ${pct}%`;
+              }
+            }
+          },
+        },
+        cutout: '68%',
+      }
+    });
+  }
+
+  // ── Hourly Chart ──────────────────────────────────────────────────────────────
+  async function loadHourly() {
+    try {
+      const res = await fetch(`/api/hourly?${allParams()}`);
+      const d = await res.json();
+      const titleEl = document.getElementById('hourlyTitle');
+      titleEl.innerHTML = `<i class="fa-solid fa-clock" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>Avg Hourly Footfall`;
+      renderHourlyChart(d);
+    } catch (e) { }
+  }
+  function renderHourlyChart(d) {
+    const ctx = document.getElementById('hourlyChart').getContext('2d');
+    if (hourlyChart) hourlyChart.destroy();
+    const BASE = '#DA291C';
+    const GC_COLOR = '#2563eb';
+    const validValues = d.values.filter(v => v > 0);
+    const peak = validValues.length ? Math.max(...validValues) : 0;
+    const gcValues = d.group_counts || [];
+    const yRange = dynamicYRange([...d.values, ...gcValues]);
+
+    hourlyChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: d.labels,
+        datasets: [
+          {
+            label: 'Visitors',
+            data: d.values,
+            backgroundColor: d.values.map((v) => v === peak ? BASE + 'EE' : BASE + '88'),
+            borderRadius: 6,
+            borderSkipped: false,
+          },
+          {
+            label: 'Group Count',
+            data: gcValues,
+            backgroundColor: GC_COLOR + '99',
+            borderRadius: 6,
+            borderSkipped: false,
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 650, easing: 'easeOutQuart' },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: { font: { size: 10 }, boxWidth: 10, padding: 8, usePointStyle: true }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, maxTicksLimit: 12, color: '#8492a6' } },
+          y: {
+            grid: { color: '#f0f0f0' },
+            ticks: { font: { size: 10 }, color: '#8492a6' },
+            ...yRange,
+          }
+        },
+      }
+    });
+  }
+
+  // ── Age Group Donut ───────────────────────────────────────────────────────────
+  async function loadAgeGroup() {
+    try {
+      const res = await fetch(`/api/age-group?${allParams()}`);
+      const d = await res.json();
+      ageData = d.buckets || [];
+      renderAgeChart(ageData);
+    } catch (e) { }
+  }
+  function renderAgeChart(buckets) {
+    const ctx = document.getElementById('ageChart').getContext('2d');
+    if (ageChart) ageChart.destroy();
+
+    const parent = ctx.canvas.parentNode;
+    let noDataMsg = parent.querySelector('.no-data-msg');
+    if (!buckets || buckets.length === 0) {
+      if (!noDataMsg) {
+        noDataMsg = document.createElement('div');
+        noDataMsg.className = 'no-data-msg';
+        noDataMsg.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;';
+        noDataMsg.textContent = 'No data available for this range.';
+        parent.appendChild(noDataMsg);
+      }
+      noDataMsg.style.display = 'flex';
+      ctx.canvas.style.display = 'none';
+      return;
+    } else {
+      ctx.canvas.style.display = 'block';
+      if (noDataMsg) noDataMsg.style.display = 'none';
+    }
+
+    const LABEL_COLORS = { 'Under 18': '#B91C1C', '25-35': '#7c3aed', '35-45': '#3B82F6', '45+': '#1E3A8A' };
+    const FALLBACK = ['#B91C1C', '#EF4444', '#3B82F6', '#1E3A8A'];
+    function labelToColor(label, palette) {
+      if (LABEL_COLORS[label]) return LABEL_COLORS[label];
+      let h = 0;
+      for (let i = 0; i < label.length; i++) { h = ((h << 5) - h) + label.charCodeAt(i); h |= 0; }
+      return palette[Math.abs(h) % palette.length];
+    }
+    const colors = buckets.map(b => labelToColor(b.label, FALLBACK));
+    ageChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: buckets.map(b => b.label),
+        datasets: [{ data: buckets.map(b => b.count), backgroundColor: colors, borderWidth: 2.5, borderColor: '#fff', hoverOffset: 6 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 700, easing: 'easeOutQuart' },
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, boxWidth: 10, usePointStyle: true } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const tot = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = tot ? ((ctx.raw / tot) * 100).toFixed(1) : 0;
+                return ` ${ctx.label}: ${pct}%`;
+              }
+            }
+          },
+        },
+        cutout: '65%',
+      }
+    });
+  }
+
+  // ── Load all ──────────────────────────────────────────────────────────────────
+  function loadAll() {
+    if (!window.currentStoreCode) {
+      showNoStoreMessage();
+      return;
+    }
+    hideNoStoreMessage();
+    const content = document.getElementById('mainContent');
+    if (content) {
+      content.style.transition = 'opacity 0.18s ease';
+      content.style.opacity = '0.45';
+      setTimeout(() => { content.style.opacity = '1'; }, 220);
+    }
+    loadOverview();
+    loadTrend();
+    loadHourly();
+    loadAgeGroup();
+  }
+
+  // ── Show/hide no store selected message ────────────────────────────────────────
+  function showNoStoreMessage() {
+    const content = document.getElementById('mainContent');
+    content.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; gap: 16px; color: var(--muted);">
+        <i class="fa-solid fa-store" style="font-size: 48px; opacity: 0.3;"></i>
+        <div style="font-size: 14px; font-weight: 500;">Please select a store to view data</div>
+      </div>
+    `;
+  }
+
+  function hideNoStoreMessage() {
+    const msgDiv = document.getElementById('mainContent').querySelector('[style*="display: flex"][style*="justify-content: center"]');
+    if (msgDiv && msgDiv.textContent.includes('Please select a store')) {
+      document.getElementById('mainContent').innerHTML = `
+        <div style="margin-bottom:10px;flex-shrink:0;">
+          <div style="font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;">
+            <i class="fa-solid fa-users" style="font-size:10px;"></i> Footfall — Period Comparison
+          </div>
+          <div class="chip-row" id="periodChips">
+            <div class="spinner" style="width:18px;height:18px;border-width:2px;margin:0;"></div>
+          </div>
+        </div>
+        <div style="margin-bottom:8px;flex-shrink:0;">
+          <div style="font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;">
+            <i class="fa-solid fa-chart-pie" style="font-size:10px;"></i> Visitor Breakdown — Selected Period
+          </div>
+          <div class="chip-row" id="kpiChips">
+            <div class="spinner" style="width:18px;height:18px;border-width:2px;margin:0;"></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:400px;display:flex;flex-direction:column;gap:12px;">
+          <div style="display:grid;grid-template-columns:1.8fr 1fr;gap:12px;flex:1;min-height:0;">
+            <div class="card" style="display:flex;flex-direction:column;min-height:0;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div class="card-title" style="margin:0;" id="trendTitle"><i class="fa-solid fa-chart-line" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>Daily Visitor Trend</div>
+              </div>
+              <div style="flex:1;position:relative;min-height:0;"><canvas id="trendChart" style="position:absolute;inset:0;width:100%!important;height:100%!important;"></canvas></div>
+            </div>
+            <div class="card" style="display:flex;flex-direction:column;min-height:0;">
+              <div class="card-title"><i class="fa-solid fa-chart-pie" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>Visitor Breakdown<span id="breakdownNote" style="font-size:9px;font-weight:400;color:var(--muted);margin-left:4px;"></span></div>
+              <div style="flex:1;position:relative;min-height:0;"><canvas id="breakdownChart" style="position:absolute;inset:0;width:100%!important;height:100%!important;"></canvas></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1.8fr 1fr;gap:12px;flex:1;min-height:0;">
+            <div class="card" style="display:flex;flex-direction:column;min-height:0;">
+              <div class="card-title" id="hourlyTitle"><i class="fa-solid fa-clock" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>Avg Hourly Footfall</div>
+              <div style="flex:1;position:relative;min-height:0;"><canvas id="hourlyChart" style="position:absolute;inset:0;width:100%!important;height:100%!important;"></canvas></div>
+            </div>
+            <div class="card" style="display:flex;flex-direction:column;min-height:0;">
+              <div class="card-title"><i class="fa-solid fa-person" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>Age Group</div>
+              <div style="flex:1;position:relative;min-height:0;"><canvas id="ageChart" style="position:absolute;inset:0;width:100%!important;height:100%!important;"></canvas></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────────
+  (function init() {
+    const hf = document.getElementById('hourFrom');
+    const ht = document.getElementById('hourTo');
+    // "To" is an exclusive boundary — e.g. From=18, To=19 shows the 18:00-18:59 bucket only.
+    for (let h = 9; h <= 22; h++) {
+      hf.add(new Option(String(h).padStart(2, '0') + ':00', h));
+    }
+    for (let h = 10; h <= 23; h++) {
+      ht.add(new Option(String(h).padStart(2, '0') + ':00', h));
+    }
+    hf.value = 9;
+    ht.value = 23;
+    document.getElementById('dateFrom').value = offsetDate(29);
+    document.getElementById('dateTo').value = todayStr();
+
+    const checkStoreInterval = setInterval(() => {
+      if (window.currentStoreCode !== undefined) {
+        clearInterval(checkStoreInterval);
+        loadAll();
+      }
+    }, 50);
+
+    const storeDropdown = document.getElementById('globalStoreCode');
+    storeDropdown.addEventListener('change', loadAll);
+  })();
+</script>
+{% endblock %}

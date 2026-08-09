@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Being Human Store Monitor — Sign In</title>
+  <link rel="icon" type="image/png" href="/static/img/tarsyer1.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Inter', system-ui, sans-serif;
+      color: #0f172a;
+      background: linear-gradient(135deg, #d71920 0%, #a8121a 50%, #7a0c13 100%);
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 30%, rgba(255,255,255,0.1) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 70%, rgba(255,255,255,0.08) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 50% 5%,  rgba(255,255,255,0.06) 0%, transparent 50%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .orb {
+      position: fixed; border-radius: 50%;
+      filter: blur(100px); opacity: 0.08;
+      pointer-events: none; z-index: 0;
+      animation: drift 20s ease-in-out infinite alternate;
+    }
+    .orb1 { width:520px;height:520px;background:#d71920;top:-130px;left:-110px;animation-delay:0s; }
+    .orb2 { width:400px;height:400px;background:#e71d2b;bottom:-90px;right:-70px;animation-delay:-7s; }
+    .orb3 { width:300px;height:300px;background:#c2141d;top:42%;left:56%;animation-delay:-14s; }
+    @keyframes drift {
+      from { transform: translate(0,0) scale(1); }
+      to   { transform: translate(45px,35px) scale(1.1); }
+    }
+
+    /* ── shell ── */
+    .shell {
+      position: relative; z-index: 1;
+      width: min(1100px, 100%);
+      min-height: min(680px, calc(100vh - 40px));
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(215,25,32,0.12),
+        0 32px 80px rgba(122,12,19,0.15),
+        0 8px 24px rgba(215,25,32,0.1);
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+    }
+
+    /* ════════════════════════ LEFT ════════════════════════ */
+    .left {
+      position: relative;
+      background: linear-gradient(180deg, #e71d2b 0%, #ba101f 100%);
+      padding: 56px 64px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+    .left::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 44px 44px;
+      pointer-events: none;
+    }
+    .left::after {
+      content: '';
+      position: absolute; right:0; top:0; bottom:0; width:2px;
+      background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.3) 30%, rgba(255,255,255,0.3) 70%, transparent 100%);
+    }
+
+    .left-top, .left-mid, .left-bot { position: relative; z-index: 1; }
+    .left-top { margin-bottom: -10px; }
+    .left-mid { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 4px 0 20px; }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px 22px;
+      width: fit-content;
+    }
+    .brand-row img { height: 46px; object-fit: contain; display: block; }
+    .brand-sep {
+      width: 1px; height: 40px;
+      background: rgba(0,0,0,0.12);
+    }
+
+    .eyebrow {
+      font-size: 13px; font-weight: 700;
+      letter-spacing: 2.8px; text-transform: uppercase;
+      color: #fff5f5;
+      margin-bottom: 15px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .eyebrow::before {
+      content: ''; width: 20px; height: 2px;
+      background: #fff5f5; border-radius: 2px;
+    }
+
+    .left h1 {
+      font-size: clamp(30px, 3.2vw, 48px);
+      font-weight: 900; line-height: 1.07;
+      letter-spacing: -1px; color: #fff;
+      text-wrap: balance;
+    }
+
+    .tagline {
+      margin-top: 16px;
+      font-size: 14.5px; line-height: 1.7;
+      color: #ffe4e6;
+      max-width: 390px;
+    }
+
+    .stat-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 30px; }
+    .stat-pill {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 40px; padding: 7px 14px 7px 9px;
+    }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #fff; box-shadow: 0 0 6px rgba(255,255,255,0.5);
+      flex-shrink: 0;
+      animation: beacon-pulse 2s infinite;
+    }
+    @keyframes beacon-pulse {
+      0%   { transform: scale(1);   filter: drop-shadow(0 0 4px currentColor); }
+      50%  { transform: scale(1.4); filter: drop-shadow(0 0 15px currentColor); }
+      100% { transform: scale(1);   filter: drop-shadow(0 0 4px currentColor); }
+    }
+    .stat-pill span { font-size: 12.5px; font-weight: 600; color: #fff; }
+
+    .feature-list { display: flex; flex-direction: column; gap: 10px; }
+    .feature-item {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; color: #fff5f5;
+    }
+    .feat-icon {
+      width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.08);
+      display: grid; place-items: center; font-size: 13px;
+    }
+
+    /* ════════════════════════ RIGHT ════════════════════════ */
+    .right {
+      background: #f9f5f5;
+      border-left: 2px solid #e71d2b;
+      padding: 52px 50px;
+      display: flex; flex-direction: column; justify-content: center;
+      position: relative;
+    }
+    .right::before {
+      content: '';
+      position: absolute; top:0; left:0; right:0; height:3px;
+      background: linear-gradient(90deg, transparent 0%, #d71920 35%, #e71d2b 65%, transparent 100%);
+    }
+
+    .bh-logo-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      margin-bottom: 20px; margin-top: -16px; gap: 16px;
+    }
+    .bh-logo-img {
+      height: 140px; max-width: 480px; object-fit: contain;
+    }
+    .bh-logo-wrap .divider-line {
+      width: 100%; height: 1px; background: #e2e8f0;
+    }
+
+    .form-eyebrow {
+      font-size: 10.5px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: #94a3b8;
+      margin-bottom: 5px;
+    }
+    .right h2 {
+      font-size: 30px; font-weight: 800; letter-spacing: -0.5px;
+      color: #0f172a; margin-bottom: 5px;
+    }
+    .sub { font-size: 13.5px; color: #64748b; margin-bottom: 26px; }
+
+    .field { margin-bottom: 13px; }
+    .field label {
+      display: block; font-size: 10.5px; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase;
+      color: #94a3b8; margin-bottom: 7px;
+    }
+    .field-wrap { position: relative; }
+    .field-icon {
+      position: absolute; left: 13px; top: 50%;
+      transform: translateY(-50%);
+      color: #cbd5e1; pointer-events: none;
+    }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      border: 1px solid #e2e8f0;
+      border-radius: 9px; height: 44px;
+      padding: 0 14px 0 38px;
+      font-size: 14px; font-family: inherit;
+      color: #0f172a;
+      background: #fff;
+      outline: none;
+      transition: border-color .18s, box-shadow .18s;
+    }
+    input[type="text"]::placeholder,
+    input[type="password"]::placeholder { color: #cbd5e1; }
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      border-color: #d71920;
+      box-shadow: 0 0 0 3px rgba(215,25,32,0.1);
+    }
+
+    .submit {
+      width: 100%; height: 46px; margin-top: 18px;
+      border: 0; border-radius: 10px;
+      background: linear-gradient(135deg, #d71920 0%, #a8121a 100%);
+      color: #fff; font-size: 14.5px; font-weight: 700;
+      font-family: inherit; letter-spacing: 0.5px;
+      cursor: pointer;
+      box-shadow: 0 6px 22px rgba(215,25,32,0.25);
+      transition: transform .14s, box-shadow .14s;
+    }
+    .submit:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(215,25,32,0.35); }
+    .submit:active { transform: translateY(0); }
+
+    .login-error {
+      margin-top: 9px; color: #dc2626;
+      font-size: 12px; text-align: center;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+
+    .divider {
+      display: flex; align-items: center; gap: 10px;
+      margin: 22px 0 14px;
+    }
+    .divider::before, .divider::after {
+      content:''; flex:1; height:1px; background: #e2e8f0;
+    }
+    .divider span { font-size: 10px; color: #cbd5e1; letter-spacing: 0.8px; }
+
+    .powered {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .powered span { font-size: 11px; color: #cbd5e1; }
+    .powered img { height: 15px; object-fit: contain; }
+
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: 1fr; }
+      .left  { padding: 36px 26px; }
+      .right { padding: 36px 26px; }
+      .left h1 { font-size: 32px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+
+  <main class="shell">
+
+    <!-- ════════ LEFT ════════ -->
+    <section class="left">
+
+      <div class="left-top">
+        <a href="http://www.tarsyer.com" target="_blank" style="display:inline-flex;align-items:center;gap:20px;background:#fff;border-radius:12px;padding:12px 22px;text-decoration:none;width:fit-content;">
+          <img src="/static/img/tarsyer.png" alt="Tarsyer" style="height:58px;object-fit:contain;" />
+        </a>
+      </div>
+
+      <div class="left-mid">
+        <div class="eyebrow" style="margin-top:14px;">Being Human Store Monitor</div>
+        <h1>
+          Master Your<br/>
+          Store Performance.
+        </h1>
+        <p class="tagline">
+          Real-time video analytics, footfall intelligence &amp; visitor insights — unified in one powerful platform.
+        </p>
+        <div class="stat-row">
+          <div class="stat-pill">
+            <div class="dot" style="background:#ff0707;box-shadow:0 0 6px #ff006e"></div>
+            <span>Live Store Monitoring</span>
+          </div>
+          <div class="stat-pill">
+            <div class="dot" style="background:#10b981;box-shadow:0 0 6px #10b981"></div>
+            <span>AI-Powered Insights</span>
+          </div>
+          <div class="stat-pill">
+            <div class="dot" style="background:#3b82f6;box-shadow:0 0 6px #3b82f6"></div>
+            <span>Footfall Intelligence</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="left-bot">
+        <div class="feature-list">
+          <div class="feature-item">
+            <div class="feat-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
+            </div>
+            <a href="mailto:tarsyer-support@tarsyer.com" style="color:#fff5f5;text-decoration:none;">tarsyer-support@tarsyer.com</a>
+          </div>
+          <div class="feature-item">
+            <div class="feat-icon">🔗</div>
+            <a href="https://www.linkedin.com/company/tarsyer/posts/?feedView=all" target="_blank" style="color:#fff5f5;text-decoration:none;">LinkedIn — Tarsyer</a>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ════════ RIGHT ════════ -->
+    <section class="right">
+      <div class="bh-logo-wrap">
+        <img src="/static/img/Beinghuman.png" alt="Being Human" class="bh-logo-img" />
+        <div class="divider-line"></div>
+      </div>
+
+      <div class="form-eyebrow">Welcome back</div>
+      <h2>Sign In</h2>
+      <p class="sub">Enter credentials to access dashboard.</p>
+
+      <form method="POST">
+        <div class="field">
+          <label for="username">Username</label>
+          <div class="field-wrap">
+            <span class="field-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            <input id="username" type="text" name="username" placeholder="Enter username" autocomplete="username" required autofocus />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="field-wrap">
+            <span class="field-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </span>
+            <input id="password" type="password" name="password" placeholder="Enter password" autocomplete="current-password" required />
+          </div>
+        </div>
+
+        <button class="submit" type="submit">Sign In →</button>
+
+        {% with msgs = get_flashed_messages() %}
+          {% if msgs %}
+            <div class="login-error">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {{ msgs[0] }}
+            </div>
+          {% endif %}
+        {% endwith %}
+      </form>
+
+    </section>
+
+  </main>
+</body>
+</html>
