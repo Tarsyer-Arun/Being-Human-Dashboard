@@ -302,22 +302,21 @@ def customer_unattended():
 
     filt = str_date_filter(date_from, date_to_ex)
     filt["store_code"] = store_code
-    filt["alert_type"] = "customer_unattended"
+    filt["alert_type"] = {"$regex": "unattended", "$options": "i"}
     filt.update(hour_expr_str(hour_from, hour_to))
 
-    # Exclude the base64 image payload - it's not needed for the list view.
-    projection = {"image_byte_str": 0}
-
-    rows = list(col.find(filt, projection).sort("date_time", -1).limit(500))
+    rows = list(col.find(filt).sort("date_time", -1).limit(500))
     total = col.count_documents(filt)
 
     alerts = [{
+        "id":          str(r["_id"]),
         "date_time":   r.get("date_time", ""),
         "store_code":  r.get("store_code", ""),
         "camera_no":   r.get("camera_no", ""),
         "alert_type":  r.get("alert_type", ""),
         "explanation": r.get("explanation", ""),
         "response":    r.get("response", ""),
+        "image_url":   r.get("image_url", ""),
     } for r in rows]
 
     return jsonify({"alerts": alerts, "total": total, "date_from": date_from, "date_to": date_to})
@@ -423,47 +422,3 @@ def export_footfall():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename=footfall_{store_code}_{date_from}_to_{date_to}.xlsx"}
     )
-
-# ─────────────────────────────────────────────
-#  CUSTOMER UNATTENDED
-# ─────────────────────────────────────────────
-@api_bp.route("/customer-unattended")
-@login_required_api
-def customer_unattended():
-    """List customer-unattended alerts from beinghumanServer.alerts.
-
-    The alert-type field name isn't fixed across pipelines, so we match
-    any of the common candidates that contain "unattended".
-    """
-    col = get_bh_db().alerts
-    date_from, date_to, date_to_ex = get_date_range()
-    hour_from, hour_to = get_hour_range()
-    store_code = get_store_code()
-
-    filt = str_date_filter(date_from, date_to_ex)
-    filt["store_code"] = store_code
-    filt.update(hour_expr_str(hour_from, hour_to))
-    filt["$or"] = [
-        {"alert_type":  {"$regex": "unattended", "$options": "i"}},
-        {"type":        {"$regex": "unattended", "$options": "i"}},
-        {"event_type":  {"$regex": "unattended", "$options": "i"}},
-        {"category":    {"$regex": "unattended", "$options": "i"}},
-    ]
-
-    rows = list(col.find(filt).sort("date_time", -1).limit(200))
-    alerts = []
-    for r in rows:
-        alerts.append({
-            "date_time": r.get("date_time", ""),
-            "store_code": r.get("store_code", ""),
-            "camera_no": r.get("camera_no", ""),
-            "alert_type": r.get("alert_type") or r.get("type") or r.get("event_type") or r.get("category") or "Customer Unattended",
-            "image_url": r.get("image_url", ""),
-        })
-
-    return jsonify({
-        "alerts": alerts,
-        "total": len(alerts),
-        "date_from": date_from,
-        "date_to": date_to,
-    })

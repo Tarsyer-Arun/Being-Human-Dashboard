@@ -128,7 +128,7 @@ Being Human Dashboard
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Date / Time</th><th>Store</th><th>Camera</th><th>Alert Type</th></tr>
+            <tr><th>Date / Time</th><th>Store</th><th>Camera</th><th>Alert Type</th><th>Image</th></tr>
           </thead>
           <tbody>
             ${alerts.map(a => `
@@ -137,12 +137,42 @@ Being Human Dashboard
                 <td>${a.store_code || '-'}</td>
                 <td>${a.camera_no || '-'}</td>
                 <td><span class="badge badge-red">${a.alert_type || 'Customer Unattended'}</span></td>
+                <td>${a.image_url ? `<button class="btn btn-outline" style="padding:3px 10px;font-size:11px;" onclick="viewAlertImage('${a.image_url}')"><i class="fa-solid fa-image"></i> View</button>` : '-'}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       </div>
     `;
+  }
+
+  function ensureImageModal() {
+    let modal = document.getElementById('alertImageModal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'alertImageModal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:1000;align-items:center;justify-content:center;';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:8px;padding:12px;max-width:90vw;max-height:90vh;position:relative;">
+        <button onclick="closeAlertImageModal()" style="position:absolute;top:-14px;right:-14px;width:28px;height:28px;border-radius:50%;border:none;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:pointer;font-size:14px;">✕</button>
+        <div id="alertImageModalBody" style="min-width:200px;min-height:150px;display:flex;align-items:center;justify-content:center;">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    `;
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeAlertImageModal(); });
+    document.body.appendChild(modal);
+    return modal;
+  }
+  function closeAlertImageModal() {
+    const modal = document.getElementById('alertImageModal');
+    if (modal) modal.style.display = 'none';
+  }
+  function viewAlertImage(url) {
+    const modal = ensureImageModal();
+    const bodyEl = document.getElementById('alertImageModalBody');
+    modal.style.display = 'flex';
+    bodyEl.innerHTML = `<img src="${url}" style="max-width:85vw;max-height:80vh;display:block;border-radius:4px;" onerror="this.parentNode.innerHTML='<div style=&quot;color:var(--muted);font-size:13px;padding:20px;&quot;>Failed to load image.</div>'" />`;
   }
 
   async function loadAlerts() {
