@@ -289,6 +289,40 @@ def hourly():
                     "date_from": date_from, "date_to": date_to, "is_avg": True})
 
 # ─────────────────────────────────────────────
+#  CUSTOMER UNATTENDED ALERTS
+# ─────────────────────────────────────────────
+@api_bp.route("/customer-unattended")
+@login_required_api
+def customer_unattended():
+    """Read-only listing of customer-unattended alerts from beinghumanServer.alerts."""
+    col = get_bh_db().alerts
+    date_from, date_to, date_to_ex = get_date_range()
+    hour_from, hour_to = get_hour_range()
+    store_code = get_store_code()
+
+    filt = str_date_filter(date_from, date_to_ex)
+    filt["store_code"] = store_code
+    filt["alert_type"] = "customer_unattended"
+    filt.update(hour_expr_str(hour_from, hour_to))
+
+    # Exclude the base64 image payload - it's not needed for the list view.
+    projection = {"image_byte_str": 0}
+
+    rows = list(col.find(filt, projection).sort("date_time", -1).limit(500))
+    total = col.count_documents(filt)
+
+    alerts = [{
+        "date_time":   r.get("date_time", ""),
+        "store_code":  r.get("store_code", ""),
+        "camera_no":   r.get("camera_no", ""),
+        "alert_type":  r.get("alert_type", ""),
+        "explanation": r.get("explanation", ""),
+        "response":    r.get("response", ""),
+    } for r in rows]
+
+    return jsonify({"alerts": alerts, "total": total, "date_from": date_from, "date_to": date_to})
+
+# ─────────────────────────────────────────────
 #  AGE GROUP
 # ─────────────────────────────────────────────
 @api_bp.route("/age-group")
