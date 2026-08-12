@@ -46,7 +46,6 @@
       <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;">
         <i class="fa-solid fa-table-list" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>
         Store-wise Device &amp; NVR Status
-        <span style="font-size:10px;font-weight:400;color:var(--muted);text-transform:none;margin-left:6px;">— from <code style="background:var(--bg);padding:1px 5px;border-radius:4px;font-size:10px;">devices_summary.device_latest_status</code></span>
       </div>
       <span id="tableCountBadge" class="badge badge-blue">Loading…</span>
     </div>
@@ -67,6 +66,21 @@
           <tr><td colspan="7" style="padding:40px;text-align:center;color:var(--muted);"><div class="spinner" style="margin:0 auto;"></div></td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Camera Snapshots -->
+  <div class="card" style="padding:0;overflow:hidden;margin-top:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border);">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;">
+        <i class="fa-solid fa-camera" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>
+        Camera Snapshots
+        <span style="font-size:10px;font-weight:400;color:var(--muted);text-transform:none;margin-left:6px;">— refreshed once a day</span>
+      </div>
+      <span id="snapshotDateLabel" style="font-size:11px;color:var(--muted);">—</span>
+    </div>
+    <div id="snapshotGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;padding:16px;">
+      <div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);"><div class="spinner" style="margin:0 auto;"></div></div>
     </div>
   </div>
 
@@ -221,20 +235,72 @@
       'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:false });
   }
 
-  // ── Auto-refresh every 5 minutes ──
+  function renderSnapshots(images, dateLabel) {
+    const grid = document.getElementById('snapshotGrid');
+    document.getElementById('snapshotDateLabel').textContent = dateLabel || '—';
+
+    if (!images || images.length === 0) {
+      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);">
+        <i class="fa-solid fa-camera" style="font-size:24px;opacity:0.3;display:block;margin-bottom:8px;"></i>
+        No snapshots available for this store.
+      </div>`;
+      return;
+    }
+
+    // API returns every capture for the day per camera, sorted by camera_no
+    // then updated_at desc — keep only the first (latest) row per camera.
+    const seen = new Set();
+    const latest = images.filter(img => {
+      const key = `${img.store_code || ''}::${img.camera_no}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    grid.innerHTML = latest.map(img => `
+      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg);">
+        <div style="aspect-ratio:16/9;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+          ${img.image_url
+            ? `<img src="${img.image_url}" alt="Camera ${img.camera_no || ''}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">`
+            : `<i class="fa-solid fa-image" style="color:#555;font-size:22px;"></i>`}
+        </div>
+        <div style="padding:8px 10px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text);">Camera ${img.camera_no != null ? img.camera_no : '—'}</div>
+          <div style="font-size:11px;color:var(--muted);">${fmtTime(img.updated_at)}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function loadSnapshots() {
+    if (!window.currentStoreCode) return;
+    try {
+      const res = await fetch(`/api/nvr/images?${storeParams()}`);
+      const d = await res.json();
+      renderSnapshots(d && d.images ? d.images : [], d ? d.date_label : null);
+    } catch (e) {
+      document.getElementById('snapshotGrid').innerHTML =
+        `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--red);">Failed to load snapshots.</div>`;
+    }
+  }
+
+  // ── Auto-refresh: status every 5 minutes, snapshots once a day ──
   const AUTO_REFRESH_MS = 5 * 60 * 1000;
+  const SNAPSHOT_REFRESH_MS = 24 * 60 * 60 * 1000;
 
   (function init() {
     const checkInterval = setInterval(() => {
       if (window.currentStoreCode !== undefined) {
         clearInterval(checkInterval);
         loadAll();
+        loadSnapshots();
         setInterval(loadAll, AUTO_REFRESH_MS);
+        setInterval(loadSnapshots, SNAPSHOT_REFRESH_MS);
       }
     }, 50);
 
     const storeDropdown = document.getElementById('globalStoreCode');
-    if (storeDropdown) storeDropdown.addEventListener('change', loadAll);
+    if (storeDropdown) storeDropdown.addEventListener('change', () => { loadAll(); loadSnapshots(); });
   })();
 </script>
 {% endblock %}
