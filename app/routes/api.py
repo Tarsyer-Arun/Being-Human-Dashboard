@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request, session, Response
 from datetime import datetime, timedelta
-from ..db import get_bh_db
+from ..db import get_bh_db, get_devices_summary_db
+from ..gcs import sign_field
 import pytz
 import io
 import random
@@ -77,6 +78,30 @@ def hour_expr_str(hour_from, hour_to):
         {"$gte": [{"$substr": ["$date_time", 11, 2]}, f"{hour_from:02d}"]},
         {"$lt":  [{"$substr": ["$date_time", 11, 2]}, f"{hour_to:02d}"]},
     ]}}
+
+def get_allowed_stores():
+    """Store codes a non-admin user is restricted to, or None for no restriction."""
+    role = session.get("role", "admin")
+    allowed = session.get("stores", [])
+    if role == "user" and allowed:
+        return allowed
+    return None
+
+def _iso(ts):
+    """Serialize a Mongo datetime (or None) to an ISO string."""
+    if ts is None:
+        return None
+    if hasattr(ts, "isoformat"):
+        return ts.isoformat()
+    return str(ts)
+
+def _minutes_since(ts):
+    """Minutes elapsed since a Mongo datetime (naive UTC), or None if unknown."""
+    if ts is None or not hasattr(ts, "isoformat"):
+        return None
+    now = datetime.utcnow()
+    ref = ts.replace(tzinfo=None) if getattr(ts, "tzinfo", None) else ts
+    return (now - ref).total_seconds() / 60.0
 
 def get_store_code():
     """Parse store_code query param; enforce per-user store access."""
@@ -422,3 +447,209 @@ def export_footfall():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename=footfall_{store_code}_{date_from}_to_{date_to}.xlsx"}
     )
+
+# ─────────────────────────────────────────────
+#  NVR MONITORING — camera status + today's captured images
+#  Source: beinghumanServer.nvr_monitoring (read-only)
+# ─────────────────────────────────────────────
+# A camera's last capture older than this is treated as offline, even if its
+# last-known fps was healthy. Captures land roughly every ~2h in practice.
+NVR_STALE_MINUTES = 180
+
+NVR_HIDDEN_FIELDS = {
+    "_id": 0, "nvr_username": 0, "nvr_password": 0, "doc_id": 0,
+    "device_serial_id": 0, "gcs_bucket": 0,
+}
+
+def _nvr_store_filter():
+    """Resolve the store filter for NVR/device endpoints: explicit store_code
+    query param (unless 'all'), else the caller's allowed stores, else none."""
+    store_code = request.args.get("store_code", "").strip()
+    allowed = get_allowed_stores()
+    if store_code and store_code.lower() != "all":
+        if allowed and store_code not in allowed:
+            return {"store_code": {"$in": allowed}}
+        return {"store_code": store_code}
+    if allowed:
+        return {"store_code": {"$in": allowed}}
+    return {}
+
+@api_bp.route("/nvr/status")
+@login_required_api
+def nvr_status():
+    """Latest-per-camera NVR status for the most recent day with data."""
+    col = get_bh_db().nvr_monitoring
+    match = _nvr_store_filter()
+
+    max_res = list(col.aggregate(
+        ([{"$match": match}] if match else []) +
+        [{"$group": {"_id": None, "max_ts": {"$max": "$updated_at"}}}]
+    ))
+    if not max_res or not max_res[0].get("max_ts"):
+        return jsonify({"cameras": [], "total": 0, "online": 0, "offline": 0, "date_label": None})
+
+    max_ts = max_res[0]["max_ts"]
+    day_start = max_ts.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = max_ts.replace(hour=23, minute=59, second=59, microsecond=999999)
+    day_match = {**match, "updated_at": {"$gte": day_start, "$lte": day_end}}
+
+    pipeline = [
+        {"$match": day_match},
+        {"$sort": {"updated_at": -1}},
+        {"$group": {
+            "_id":        {"store_code": "$store_code", "camera_no": "$camera_no"},
+            "store_code": {"$first": "$store_code"},
+            "camera_no":  {"$first": "$camera_no"},
+            "fps":        {"$first": "$fps"},
+            "resolution": {"$first": "$resolution"},
+            "image_url":  {"$first": "$image_url"},
+            "updated_at": {"$first": "$updated_at"},
+        }},
+        {"$sort": {"store_code": 1, "camera_no": 1}},
+    ]
+    cams = list(col.aggregate(pipeline))
+    for c in cams:
+        c.pop("_id", None)
+        # A camera only counts as online if it has a working feed (fps > 0)
+        # AND we've actually heard from it recently — a fps reading from
+        # hours ago doesn't mean it's online now.
+        age_min = _minutes_since(c.get("updated_at"))
+        stale = age_min is not None and age_min > NVR_STALE_MINUTES
+        c["status"] = "offline" if (stale or (c.get("fps") or 0) == 0) else "online"
+        c["updated_at"] = _iso(c.get("updated_at"))
+    sign_field(cams)
+
+    total = len(cams)
+    offline = sum(1 for c in cams if c["status"] == "offline")
+    return jsonify({
+        "cameras":    cams,
+        "total":      total,
+        "online":     total - offline,
+        "offline":    offline,
+        "date_label": day_start.strftime("%d %b %Y"),
+    })
+
+@api_bp.route("/nvr/images")
+@login_required_api
+def nvr_images():
+    """All captured NVR snapshots for the most recent day with data."""
+    col = get_bh_db().nvr_monitoring
+    match = _nvr_store_filter()
+    match["image_url"] = {"$exists": True, "$nin": [None, ""]}
+
+    max_res = list(col.aggregate(
+        [{"$match": match}, {"$group": {"_id": None, "max_ts": {"$max": "$updated_at"}}}]
+    ))
+    if not max_res or not max_res[0].get("max_ts"):
+        return jsonify({"images": [], "total": 0, "date_label": None})
+
+    max_ts = max_res[0]["max_ts"]
+    day_start = max_ts.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = max_ts.replace(hour=23, minute=59, second=59, microsecond=999999)
+    day_match = {**match, "updated_at": {"$gte": day_start, "$lte": day_end}}
+
+    limit = min(int(request.args.get("limit", 300)), 500)
+    docs = list(
+        col.find(day_match, NVR_HIDDEN_FIELDS)
+        .sort([("camera_no", 1), ("updated_at", -1)])
+        .limit(limit)
+    )
+    for d in docs:
+        d["updated_at"] = _iso(d.get("updated_at"))
+        d["created_at"] = _iso(d.get("created_at"))
+    sign_field(docs)
+
+    return jsonify({
+        "images":     docs,
+        "total":      len(docs),
+        "date_label": day_start.strftime("%d %b %Y"),
+    })
+
+# ─────────────────────────────────────────────
+#  DEVICE STATUS — heartbeat from devices_summary.device_latest_status
+#  Read-only remote DB (see DS_* env vars); never written to by this app.
+# ─────────────────────────────────────────────
+# A device counts as online only if we've received a heartbeat within this
+# window — a "last known" status of Online from a stale record is misleading.
+HEARTBEAT_STALE_MINUTES = 15
+
+@api_bp.route("/device-status")
+@login_required_api
+def device_status():
+    ds_db = get_devices_summary_db()
+    if ds_db is None:
+        return jsonify({
+            "records": [], "total": 0, "devices_offline": 0, "dvr_nvr_offline": 0,
+            "configured": False,
+        })
+
+    store_code = request.args.get("store_code", "").strip()
+    allowed = get_allowed_stores()
+
+    match = {"project_name": "BeingHuman"}
+    if store_code and store_code.lower() != "all":
+        match["store_code"] = store_code
+    elif allowed:
+        match["store_code"] = {"$in": allowed}
+
+    pipeline = [
+        {"$match": match},
+        {"$sort": {"last_heartbeat_at": -1}},
+        {"$group": {"_id": "$store_code", "doc": {"$first": "$$ROOT"}}},
+        {"$replaceRoot": {"newRoot": "$doc"}},
+        {"$sort": {"_id": 1}},
+    ]
+
+    records = []
+    for r in ds_db.device_latest_status.aggregate(pipeline):
+        svc_map = r.get("interval_services_active_status") or {}
+        cam_svc = str(svc_map.get("camera.service") or "").strip().lower()
+        software_status = "Online" if cam_svc == "active" else ("Offline" if cam_svc else "Unknown")
+
+        cam_status = r.get("camera_status") or {}
+        if isinstance(cam_status, dict) and cam_status:
+            dvr_online = any(str(v).strip() == "1" for v in cam_status.values())
+            dvr_status = "Online" if dvr_online else "Offline"
+        else:
+            dvr_status = "Unknown"
+
+        dvr_online_count = r.get("dvr_online_count") or 0
+        if dvr_online_count > 0 or dvr_status == "Online":
+            dvr_status = "Online"
+
+        age_min = _minutes_since(r.get("last_heartbeat_at"))
+        heartbeat_received = age_min is not None and age_min <= HEARTBEAT_STALE_MINUTES
+        
+        # Rule: If NVR/DVR is online (dvr_status == "Online" or dvr_online_count > 0) OR heartbeat received, Device MUST be Online
+        if dvr_status == "Online" or dvr_online_count > 0 or heartbeat_received:
+            device_status_val = "Online"
+            dvr_status_val = "Online"
+        else:
+            device_status_val = "Offline"
+            dvr_status_val = "Offline" if dvr_status == "Offline" else dvr_status
+
+        records.append({
+            "store_code":        r.get("store_code", ""),
+            "hostname":          r.get("hostname", ""),
+            "device_status":     device_status_val,
+            "software_status":   software_status,
+            "dvr_nvr_status":    dvr_status_val,
+            "temperature":       r.get("cpu_temp"),
+            "serial_id":         str(r.get("_id", "")),
+            "dvr_online_count":  r.get("dvr_online_count"),
+            "dvr_total_count":   r.get("dvr_total_count"),
+            "last_heartbeat_at": _iso(r.get("last_heartbeat_at")),
+        })
+
+    records.sort(key=lambda r: (r["device_status"] != "Online", r["store_code"]))
+    total = len(records)
+    devices_offline = sum(1 for r in records if r["device_status"] != "Online")
+    dvr_offline = sum(1 for r in records if r["dvr_nvr_status"] == "Offline")
+
+    return jsonify({
+        "records":         records,
+        "total":           total,
+        "devices_offline": devices_offline,
+        "dvr_nvr_offline": dvr_offline,
+        "configured":      True,
+    })

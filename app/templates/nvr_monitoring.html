@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}NVR & Device Monitoring{% endblock %}
+{% block page_title %}<i class="fa-solid fa-video" style="color:var(--primary);margin-right:8px"></i>NVR & Device Monitoring — Being Human Dashboard{% endblock %}
+
+{% block content %}
+<div class="filter-bar">
+  <label><i class="fa-solid fa-calendar-day" style="margin-right:4px;"></i>Status as of</label>
+  <span id="dateLabel" style="font-size:12.5px;color:var(--text-2);font-weight:600;">—</span>
+  <span style="flex:1;"></span>
+  <span id="lastRefreshed" style="font-size:11px;color:var(--muted);margin-right:8px;"></span>
+  <button class="btn btn-outline" id="refreshBtn" onclick="loadAll()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+</div>
+
+<div class="content" id="mainContent">
+
+  <!-- Summary Stat Cards -->
+  <div class="stats-row" style="margin-bottom:16px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));">
+    <div class="stat-card blue">
+      <div class="stat-label"><i class="fa-solid fa-microchip" style="margin-right:4px;"></i>Total Devices</div>
+      <div class="stat-value" id="kpiTotalDevices">—</div>
+      <div class="stat-sub">From devices_summary DB</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label"><i class="fa-solid fa-microchip" style="margin-right:4px;"></i>Device Status</div>
+      <div class="stat-value">
+        <span id="kpiDevicesOnline" style="color:var(--green);">—</span
+        ><span style="color:var(--muted);font-weight:400;"> / </span
+        ><span id="kpiDevicesOffline" style="color:var(--red);">—</span>
+      </div>
+      <div class="stat-sub">Online / Offline</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label"><i class="fa-solid fa-video" style="margin-right:4px;"></i>NVR Status</div>
+      <div class="stat-value">
+        <span id="kpiNvrOnline" style="color:var(--green);">—</span
+        ><span style="color:var(--muted);font-weight:400;"> / </span
+        ><span id="kpiNvrOffline" style="color:var(--red);">—</span>
+      </div>
+      <div class="stat-sub">Online / Offline</div>
+    </div>
+  </div>
+
+  <!-- Device + NVR Status Table -->
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border);">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;">
+        <i class="fa-solid fa-table-list" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>
+        Store-wise Device &amp; NVR Status
+        <span style="font-size:10px;font-weight:400;color:var(--muted);text-transform:none;margin-left:6px;">— from <code style="background:var(--bg);padding:1px 5px;border-radius:4px;font-size:10px;">devices_summary.device_latest_status</code></span>
+      </div>
+      <span id="tableCountBadge" class="badge badge-blue">Loading…</span>
+    </div>
+    <div id="statusTableWrap" style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+        <thead>
+          <tr style="background:var(--bg);">
+            <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">#</th>
+            <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Store Code</th>
+            <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Hostname</th>
+            <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Last Heartbeat</th>
+            <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">CPU Temp</th>
+            <th style="padding:9px 16px;text-align:center;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Device Status</th>
+            <th style="padding:9px 16px;text-align:center;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">NVR Status</th>
+          </tr>
+        </thead>
+        <tbody id="statusTableBody">
+          <tr><td colspan="7" style="padding:40px;text-align:center;color:var(--muted);"><div class="spinner" style="margin:0 auto;"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .status-online {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    background: #d1fae5; color: var(--green);
+    font-size: 11.5px; font-weight: 600;
+  }
+  .status-offline {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    background: #fee2e2; color: var(--red);
+    font-size: 11.5px; font-weight: 600;
+  }
+  .status-unknown {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    background: #f3f4f6; color: var(--muted);
+    font-size: 11.5px; font-weight: 600;
+  }
+  .pulse-green { width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;box-shadow:0 0 0 0 rgba(22,163,122,0.5);animation:pulseGreen 1.8s infinite; }
+  .pulse-red   { width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block; }
+  .pulse-gray  { width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block; }
+  @keyframes pulseGreen {
+    0%   { box-shadow: 0 0 0 0 rgba(22,163,122,0.5); }
+    70%  { box-shadow: 0 0 0 6px rgba(22,163,122,0); }
+    100% { box-shadow: 0 0 0 0 rgba(22,163,122,0); }
+  }
+  tbody tr:hover td { background: #f8f9fc; }
+  tbody tr td { padding: 10px 16px; border-bottom: 1px solid var(--border); color: var(--text-2); }
+  tbody tr:last-child td { border-bottom: none; }
+</style>
+<script>
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso).slice(0, 19).replace('T', ' ');
+    return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
+  function statusPill(status) {
+    const s = (status || 'Unknown').toString();
+    const isOnline  = s === 'Online'  || s === 'online';
+    const isOffline = s === 'Offline' || s === 'offline';
+    if (isOnline)  return `<span class="status-online"><span class="pulse-green"></span>Online</span>`;
+    if (isOffline) return `<span class="status-offline"><span class="pulse-red"></span>Offline</span>`;
+    return `<span class="status-unknown"><span class="pulse-gray"></span>${s}</span>`;
+  }
+
+  function storeParams() {
+    const sc = window.currentStoreCode || '';
+    return sc ? `store_code=${encodeURIComponent(sc)}` : '';
+  }
+
+  function renderTable(records) {
+    const tbody = document.getElementById('statusTableBody');
+    if (!records || records.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--muted);">
+        <i class="fa-solid fa-satellite-dish" style="font-size:24px;opacity:0.3;display:block;margin-bottom:8px;"></i>
+        No heartbeat data for this store.
+      </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = records.map((r, i) => {
+      const devOnline = r.device_status === 'Online';
+      const nvrOnline = r.dvr_nvr_status === 'Online';
+      const rowBg = (!devOnline || !nvrOnline) ? 'background:#fff8f8;' : '';
+      return `<tr style="${rowBg}">
+        <td style="color:var(--muted);font-size:12px;">${i + 1}</td>
+        <td><strong style="color:var(--text);">${r.store_code || '—'}</strong></td>
+        <td style="color:var(--muted);font-size:12px;">${r.hostname || '—'}</td>
+        <td style="font-size:12px;color:var(--muted);">${fmtTime(r.last_heartbeat_at)}</td>
+        <td style="font-size:12px;">${r.temperature != null ? `<span style="color:var(--text);">${Number(r.temperature).toFixed(1)}°C</span>` : '<span style="color:var(--muted);">—</span>'}</td>
+        <td style="text-align:center;">${statusPill(r.device_status)}</td>
+        <td style="text-align:center;">${statusPill(r.dvr_nvr_status)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderKpis(d) {
+    const devTotal = (d && d.configured) ? (d.total || 0) : 0;
+    const devOff   = (d && d.configured) ? (d.devices_offline || 0) : 0;
+    const devOn    = devTotal - devOff;
+    const nvrOff   = (d && d.configured) ? (d.dvr_nvr_offline || 0) : 0;
+    const nvrOn    = devTotal - nvrOff;
+
+    if (d && d.configured) {
+      document.getElementById('kpiTotalDevices').textContent   = devTotal;
+      document.getElementById('kpiDevicesOnline').textContent  = devOn;
+      document.getElementById('kpiDevicesOffline').textContent = devOff;
+      document.getElementById('kpiNvrOnline').textContent      = nvrOn;
+      document.getElementById('kpiNvrOffline').textContent     = nvrOff;
+      document.getElementById('tableCountBadge').textContent   = `${devOn}/${devTotal} Devices Online`;
+      document.getElementById('tableCountBadge').className     = devOff > 0 ? 'badge badge-red' : 'badge badge-green';
+    } else {
+      ['kpiTotalDevices','kpiDevicesOnline','kpiDevicesOffline','kpiNvrOnline','kpiNvrOffline'].forEach(id => {
+        document.getElementById(id).textContent = 'N/A';
+      });
+      document.getElementById('tableCountBadge').textContent = 'DB not configured';
+      document.getElementById('tableCountBadge').className   = 'badge badge-gray';
+    }
+  }
+
+  async function loadAll() {
+    if (!window.currentStoreCode) {
+      document.getElementById('mainContent').innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:16px;color:var(--muted);">
+          <i class="fa-solid fa-store" style="font-size:48px;opacity:0.3;"></i>
+          <div style="font-size:14px;font-weight:500;">Please select a store to view data</div>
+        </div>`;
+      return;
+    }
+
+    // Show loading state in table
+    document.getElementById('statusTableBody').innerHTML =
+      `<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--muted);"><div class="spinner" style="margin:0 auto;"></div></td></tr>`;
+
+    try {
+      const res = await fetch(`/api/device-status?${storeParams()}`);
+      const d   = await res.json();
+
+      // NVR online rule: if NVR cameras are online, force device online too
+      if (d && d.configured && d.records) {
+        d.records.forEach(r => {
+          if (r.dvr_nvr_status === 'Online') r.device_status = 'Online';
+        });
+        d.devices_offline  = d.records.filter(r => r.device_status  !== 'Online').length;
+        d.dvr_nvr_offline  = d.records.filter(r => r.dvr_nvr_status !== 'Online').length;
+      }
+
+      renderKpis(d);
+      renderTable(d && d.records ? d.records : []);
+
+      // Set date label from last heartbeat
+      if (d && d.records && d.records.length > 0 && d.records[0].last_heartbeat_at) {
+        const dt = new Date(d.records[0].last_heartbeat_at);
+        document.getElementById('dateLabel').textContent = dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+      }
+    } catch (e) {
+      document.getElementById('statusTableBody').innerHTML =
+        `<tr><td colspan="7" style="padding:30px;text-align:center;color:var(--red);">Failed to load status data.</td></tr>`;
+    }
+
+    document.getElementById('lastRefreshed').textContent =
+      'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:false });
+  }
+
+  // ── Auto-refresh every 5 minutes ──
+  const AUTO_REFRESH_MS = 5 * 60 * 1000;
+
+  (function init() {
+    const checkInterval = setInterval(() => {
+      if (window.currentStoreCode !== undefined) {
+        clearInterval(checkInterval);
+        loadAll();
+        setInterval(loadAll, AUTO_REFRESH_MS);
+      }
+    }, 50);
+
+    const storeDropdown = document.getElementById('globalStoreCode');
+    if (storeDropdown) storeDropdown.addEventListener('change', loadAll);
+  })();
+</script>
+{% endblock %}

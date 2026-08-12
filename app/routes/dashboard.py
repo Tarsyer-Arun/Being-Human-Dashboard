@@ -30,3 +30,8 @@ def overview():
 @login_required
 def customer_unattended():
     return render_template("customer_unattended.html")
+
+@dashboard_bp.route("/nvr-monitoring")
+@login_required
+def nvr_monitoring():
+    return render_template("nvr_monitoring.html")

@@ -333,6 +333,9 @@
   <a href="/customer-unattended" class="nav-item {% if request.path == '/customer-unattended' %}active{% endif %}" id="navCustomerUnattended">
     <i class="fa-solid fa-user-clock"></i> Customer Unattended
   </a>
+  <a href="/nvr-monitoring" class="nav-item {% if request.path == '/nvr-monitoring' %}active{% endif %}" id="navNvrMonitoring">
+    <i class="fa-solid fa-video"></i> NVR Monitoring
+  </a>
 </nav>
 
 <script>
@@ -378,7 +381,7 @@
 
   // Update navigation links with store code
   function updateNavLinks(storeCode) {
-    const links = ['navOverview', 'navCustomerUnattended'];
+    const links = ['navOverview', 'navCustomerUnattended', 'navNvrMonitoring'];
     links.forEach(id => {
       const link = document.getElementById(id);
       if (link) {
