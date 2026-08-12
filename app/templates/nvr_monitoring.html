@@ -259,7 +259,7 @@
 
     grid.innerHTML = latest.map(img => `
       <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg);">
-        <div style="aspect-ratio:16/9;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+        <div style="aspect-ratio:16/9;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;${img.image_url ? 'cursor:pointer;' : ''}" ${img.image_url ? `onclick="viewSnapshot('${img.image_url}', 'Camera ${img.camera_no != null ? img.camera_no : ''}')"` : ''}>
           ${img.image_url
             ? `<img src="${img.image_url}" alt="Camera ${img.camera_no || ''}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">`
             : `<i class="fa-solid fa-image" style="color:#555;font-size:22px;"></i>`}
@@ -270,6 +270,38 @@
         </div>
       </div>
     `).join('');
+  }
+
+  function ensureSnapshotModal() {
+    let modal = document.getElementById('snapshotModal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'snapshotModal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;align-items:center;justify-content:center;';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:8px;padding:12px;max-width:90vw;max-height:90vh;position:relative;">
+        <button onclick="closeSnapshotModal()" style="position:absolute;top:-14px;right:-14px;width:28px;height:28px;border-radius:50%;border:none;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:pointer;font-size:14px;">✕</button>
+        <div id="snapshotModalCaption" style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;"></div>
+        <div id="snapshotModalBody" style="min-width:200px;min-height:150px;display:flex;align-items:center;justify-content:center;">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    `;
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeSnapshotModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSnapshotModal(); });
+    document.body.appendChild(modal);
+    return modal;
+  }
+  function closeSnapshotModal() {
+    const modal = document.getElementById('snapshotModal');
+    if (modal) modal.style.display = 'none';
+  }
+  function viewSnapshot(url, caption) {
+    const modal = ensureSnapshotModal();
+    document.getElementById('snapshotModalCaption').textContent = caption || '';
+    document.getElementById('snapshotModalBody').innerHTML =
+      `<img src="${url}" style="max-width:85vw;max-height:80vh;display:block;border-radius:4px;" onerror="this.parentNode.innerHTML='<div style=&quot;color:var(--muted);font-size:13px;padding:20px;&quot;>Failed to load image.</div>'" />`;
+    modal.style.display = 'flex';
   }
 
   async function loadSnapshots() {
