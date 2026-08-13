@@ -490,6 +490,7 @@ def export_footfall():
             "female": {"$sum": {"$convert": {"input": "$count_female", "to": "int", "onError": 0, "onNull": 0}}},
             "child": {"$sum": {"$convert": {"input": "$count_child", "to": "int", "onError": 0, "onNull": 0}}},
             "staff": {"$sum": {"$convert": {"input": "$count_staff", "to": "int", "onError": 0, "onNull": 0}}},
+            "group_count": {"$sum": {"$convert": {"input": "$group_count", "to": "int", "onError": 0, "onNull": 0}}},
         }},
         {"$sort": {"_id.date": 1, "_id.hour": 1}}
     ]
@@ -503,7 +504,7 @@ def export_footfall():
     header_fill = PatternFill("solid", fgColor="DA291C")
     header_font = Font(bold=True, color="FFFFFF", size=11)
 
-    headers = ["Date", "Hour", "Male", "Female", "Child", "Staff", "Total Visitors"]
+    headers = ["Date", "Hour", "Male", "Female", "Child", "Staff", "Total Visitors", "Group Count"]
     for ci, h in enumerate(headers, 1):
         cell = ws.cell(row=1, column=ci, value=h)
         cell.fill = header_fill
@@ -515,6 +516,8 @@ def export_footfall():
         f_ = d.get("female", 0)
         c = d.get("child", 0)
         s = d.get("staff", 0)
+        total_visitors = m + f_ + c
+        grp = clamp_group_count(d.get("group_count", 0), total_visitors)
         date_val = d["_id"]["date"]
         hour_val = d["_id"]["hour"]
 
@@ -524,7 +527,8 @@ def export_footfall():
         ws.cell(row=ri, column=4, value=f_)
         ws.cell(row=ri, column=5, value=c)
         ws.cell(row=ri, column=6, value=s)
-        ws.cell(row=ri, column=7, value=m + f_ + c)
+        ws.cell(row=ri, column=7, value=total_visitors)
+        ws.cell(row=ri, column=8, value=grp)
 
     for i, col_dim in enumerate(ws.columns, 1):
         ws.column_dimensions[get_column_letter(i)].width = 18

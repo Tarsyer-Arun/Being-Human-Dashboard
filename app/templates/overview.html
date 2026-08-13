@@ -56,17 +56,6 @@ Being Human Dashboard
     </div>
   </div>
 
-  <!-- Row 3: Dwell Time Chips -->
-  <div style="margin-bottom:10px;flex-shrink:0;">
-    <div
-      style="font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;">
-      <i class="fa-solid fa-hourglass-half" style="font-size:10px;"></i> Dwell Time — Selected Period
-    </div>
-    <div class="chip-row" id="dwellChips">
-      <div class="spinner" style="width:18px;height:18px;border-width:2px;margin:0;"></div>
-    </div>
-  </div>
-
 
   <!-- Charts: two equal rows -->
   <div style="flex:1;min-height:400px;display:flex;flex-direction:column;gap:12px;">
@@ -276,35 +265,6 @@ Being Human Dashboard
     animateValue(document.getElementById('kc-total'), total);
     animateValue(document.getElementById('kc-male'), b.male || 0);
     animateValue(document.getElementById('kc-female'), b.female || 0);
-  }
-
-  // ── Dwell Time chips ──────────────────────────────────────────────────────────
-  async function loadDwell() {
-    try {
-      const res = await fetch(`/api/dwell?${allParams()}`);
-      const d = await res.json();
-      renderDwellChips(d);
-    } catch (e) {
-      document.getElementById('dwellChips').innerHTML =
-        '<span style="color:var(--red);font-size:12px;">Failed to load</span>';
-    }
-  }
-  function renderDwellChips(d) {
-    const el = document.getElementById('dwellChips');
-    if (!el.dataset.built) {
-      el.innerHTML = `
-      <span class="chip chip-gold"><i class="fa-solid fa-stopwatch" style="font-size:10px;"></i> Avg Dwell Time: <strong id="dw-avg">—</strong></span>
-      <span class="chip chip-green" style="animation-delay:0.04s"><i class="fa-solid fa-person-walking" style="font-size:10px;"></i> &lt; 2 min: <strong id="dw-lt2">0%</strong></span>
-      <span class="chip chip-teal" style="animation-delay:0.08s"><i class="fa-solid fa-person" style="font-size:10px;"></i> 2–10 min: <strong id="dw-b210">0%</strong></span>
-      <span class="chip chip-red" style="animation-delay:0.12s"><i class="fa-solid fa-couch" style="font-size:10px;"></i> &gt; 10 min: <strong id="dw-gt10">0%</strong></span>
-    `;
-      el.dataset.built = '1';
-    }
-    document.getElementById('dw-avg').textContent =
-      (d.avg_dwell_minutes != null) ? `${d.avg_dwell_minutes} min` : '—';
-    document.getElementById('dw-lt2').textContent   = `${d.pct_lt2 || 0}%`;
-    document.getElementById('dw-b210').textContent  = `${d.pct_b2_10 || 0}%`;
-    document.getElementById('dw-gt10').textContent  = `${d.pct_gt10 || 0}%`;
   }
 
   // ── Trend ─────────────────────────────────────────────────────────────────────
@@ -563,7 +523,6 @@ Being Human Dashboard
       setTimeout(() => { content.style.opacity = '1'; }, 220);
     }
     loadOverview();
-    loadDwell();
     loadTrend();
     loadHourly();
     loadAgeGroup();
