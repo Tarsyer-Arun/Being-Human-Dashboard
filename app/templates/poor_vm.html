@@ -12,6 +12,12 @@ Being Human Dashboard
   <input type="date" id="dateFrom" />
   <label>To</label>
   <input type="date" id="dateTo" />
+  <label>Hour</label>
+  <select id="hourFrom"
+    style="padding:5px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;color:#374151;"></select>
+  <span style="color:var(--muted);font-size:12px;">–</span>
+  <select id="hourTo"
+    style="padding:5px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;color:#374151;"></select>
   <label>Camera</label>
   <select id="cameraFilter"
     style="padding:5px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;color:#374151;">
@@ -104,9 +110,11 @@ Being Human Dashboard
   function allParams() {
     const from = document.getElementById('dateFrom').value;
     const to = document.getElementById('dateTo').value;
+    const hourFrom = document.getElementById('hourFrom').value;
+    const hourTo = document.getElementById('hourTo').value;
     const camera = document.getElementById('cameraFilter').value;
     const storeCode = window.currentStoreCode || 'BH-01';
-    let qs = `from=${from}&to=${to}&store_code=${storeCode}`;
+    let qs = `from=${from}&to=${to}&hour_from=${hourFrom}&hour_to=${hourTo}&store_code=${storeCode}`;
     if (camera) qs += `&camera_no=${encodeURIComponent(camera)}`;
     return qs;
   }
@@ -249,6 +257,16 @@ Being Human Dashboard
   }
 
   (function init() {
+    const hf = document.getElementById('hourFrom');
+    const ht = document.getElementById('hourTo');
+    for (let h = 9; h <= 22; h++) {
+      hf.add(new Option(String(h).padStart(2, '0') + ':00', h));
+    }
+    for (let h = 10; h <= 23; h++) {
+      ht.add(new Option(String(h).padStart(2, '0') + ':00', h));
+    }
+    hf.value = 9;
+    ht.value = 23;
     document.getElementById('dateFrom').value = offsetDate(29);
     document.getElementById('dateTo').value = todayStr();
     document.getElementById('cameraFilter').addEventListener('change', loadAll);

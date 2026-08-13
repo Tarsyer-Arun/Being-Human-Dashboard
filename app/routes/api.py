@@ -397,19 +397,16 @@ def customer_unattended():
 @api_bp.route("/poor-vm-alerts")
 @login_required_api
 def poor_vm_alerts():
-    """Read-only listing of poor-VM (messy hotspot) alerts from beinghumanServer.alerts.
-
-    No hour-of-day filter here (unlike footfall/dwell) — VM checks aren't
-    limited to "business hours", so restricting to 9am-11pm would hide
-    genuine alerts caught outside that window.
-    """
+    """Read-only listing of poor-VM (messy hotspot) alerts from beinghumanServer.alerts."""
     col = get_bh_db().alerts
     date_from, date_to, date_to_ex = get_date_range()
+    hour_from, hour_to = get_hour_range()
     store_code = get_store_code()
 
     filt = str_date_filter(date_from, date_to_ex)
     filt["store_code"] = store_code
     filt["alert_type"] = "poor_vm"
+    filt.update(hour_expr_str(hour_from, hour_to))
 
     camera_no = request.args.get("camera_no", "").strip()
     if camera_no:
