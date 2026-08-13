@@ -35,3 +35,8 @@ def customer_unattended():
 @login_required
 def nvr_monitoring():
     return render_template("nvr_monitoring.html")
+
+@dashboard_bp.route("/poor-vm")
+@login_required
+def poor_vm():
+    return render_template("poor_vm.html")

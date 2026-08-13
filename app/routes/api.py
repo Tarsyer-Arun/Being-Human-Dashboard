@@ -236,6 +236,51 @@ def overview():
     })
 
 # ─────────────────────────────────────────────
+#  DWELL TIME — bucketed % + average dwell time for the selected period
+# ─────────────────────────────────────────────
+@api_bp.route("/dwell")
+@login_required_api
+def dwell():
+    col = get_bh_db().dwell_time_summary
+    store_code = get_store_code()
+    date_from, date_to, date_to_ex = get_date_range()
+    hour_from, hour_to = get_hour_range()
+
+    match = {**str_date_filter(date_from, date_to_ex), **hour_expr_str(hour_from, hour_to), "store_code": store_code}
+
+    pipeline = [
+        {"$match": match},
+        {"$group": {
+            "_id":              None,
+            "lt2":              {"$sum": "$dwell_store_count_less_than_2_minutes"},
+            "b2_10":            {"$sum": "$dwell_store_count_between_2_to_10_minutes"},
+            "gt10":             {"$sum": "$dwell_store_count_more_than_10_minutes"},
+            "weighted_seconds": {"$sum": {"$multiply": ["$average_time_difference_seconds", "$total_matches_found"]}},
+            "total_matches":    {"$sum": "$total_matches_found"},
+        }},
+    ]
+    rows = list(col.aggregate(pipeline))
+    r = rows[0] if rows else {}
+
+    lt2, b2_10, gt10 = r.get("lt2", 0) or 0, r.get("b2_10", 0) or 0, r.get("gt10", 0) or 0
+    total = lt2 + b2_10 + gt10
+    total_matches = r.get("total_matches", 0) or 0
+    avg_dwell_minutes = (r.get("weighted_seconds", 0) / total_matches / 60) if total_matches else None
+
+    return jsonify({
+        "total_lt2":         lt2,
+        "total_b2_10":       b2_10,
+        "total_gt10":        gt10,
+        "grand_total":       total,
+        "pct_lt2":           round(lt2 / total * 100, 1)   if total else 0,
+        "pct_b2_10":         round(b2_10 / total * 100, 1) if total else 0,
+        "pct_gt10":          round(gt10 / total * 100, 1)  if total else 0,
+        "avg_dwell_minutes": round(avg_dwell_minutes, 1) if avg_dwell_minutes is not None else None,
+        "date_from":         date_from,
+        "date_to":           date_to,
+    })
+
+# ─────────────────────────────────────────────
 #  DAILY FOOTFALL TREND
 # ─────────────────────────────────────────────
 @api_bp.route("/trend")
@@ -345,6 +390,54 @@ def customer_unattended():
     } for r in rows]
 
     return jsonify({"alerts": alerts, "total": total, "date_from": date_from, "date_to": date_to})
+
+# ─────────────────────────────────────────────
+#  POOR VM (visual merchandising) ALERTS
+# ─────────────────────────────────────────────
+@api_bp.route("/poor-vm-alerts")
+@login_required_api
+def poor_vm_alerts():
+    """Read-only listing of poor-VM (messy hotspot) alerts from beinghumanServer.alerts.
+
+    No hour-of-day filter here (unlike footfall/dwell) — VM checks aren't
+    limited to "business hours", so restricting to 9am-11pm would hide
+    genuine alerts caught outside that window.
+    """
+    col = get_bh_db().alerts
+    date_from, date_to, date_to_ex = get_date_range()
+    store_code = get_store_code()
+
+    filt = str_date_filter(date_from, date_to_ex)
+    filt["store_code"] = store_code
+    filt["alert_type"] = "poor_vm"
+
+    camera_no = request.args.get("camera_no", "").strip()
+    if camera_no:
+        try:
+            filt["camera_no"] = int(camera_no)
+        except ValueError:
+            filt["camera_no"] = camera_no
+
+    rows = list(col.find(filt, {"image_byte_str": 0}).sort("date_time", -1).limit(500))
+    total = col.count_documents(filt)
+    cameras = sorted({r.get("camera_no") for r in rows if r.get("camera_no") is not None})
+
+    alerts = [{
+        "id":          str(r["_id"]),
+        "date_time":   r.get("date_time", ""),
+        "store_code":  r.get("store_code", ""),
+        "camera_no":   r.get("camera_no", ""),
+        "alert_type":  r.get("alert_type", ""),
+        "explanation": r.get("explanation", ""),
+        "response":    r.get("response", ""),
+        "image_url":   r.get("image_url", ""),
+    } for r in rows]
+    sign_field(alerts)
+
+    return jsonify({
+        "alerts": alerts, "total": total, "cameras": cameras,
+        "date_from": date_from, "date_to": date_to,
+    })
 
 # ─────────────────────────────────────────────
 #  AGE GROUP
