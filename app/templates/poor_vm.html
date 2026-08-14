@@ -24,10 +24,10 @@ Being Human Dashboard
     <option value="">All</option>
   </select>
   <button class="btn btn-primary" onclick="applyFilters()"><i class="fa-solid fa-magnifying-glass"></i> Apply</button>
-  <button class="quick-btn" onclick="setRange(0)">Today</button>
+  <button class="quick-btn active" id="btnToday" onclick="setRange(0)">Today</button>
   <button class="quick-btn" onclick="setYesterday()">Yesterday</button>
   <button class="quick-btn" onclick="setRange(6)">7 Days</button>
-  <button class="quick-btn active" id="btn30" onclick="setRange(29)">30 Days</button>
+  <button class="quick-btn" id="btn30" onclick="setRange(29)">30 Days</button>
   <button class="quick-btn" onclick="setRange(89)">90 Days</button>
 </div>
 
@@ -267,7 +267,7 @@ Being Human Dashboard
     }
     hf.value = 9;
     ht.value = 23;
-    document.getElementById('dateFrom').value = offsetDate(29);
+    document.getElementById('dateFrom').value = todayStr();
     document.getElementById('dateTo').value = todayStr();
     document.getElementById('cameraFilter').addEventListener('change', loadAll);
 
