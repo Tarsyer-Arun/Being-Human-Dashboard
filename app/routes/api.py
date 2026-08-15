@@ -666,7 +666,7 @@ def nvr_images():
 # ─────────────────────────────────────────────
 # A device counts as online only if we've received a heartbeat within this
 # window — a "last known" status of Online from a stale record is misleading.
-HEARTBEAT_STALE_MINUTES = 15
+HEARTBEAT_STALE_MINUTES = 30
 
 @api_bp.route("/device-status")
 @login_required_api
@@ -714,14 +714,18 @@ def device_status():
 
         age_min = _minutes_since(r.get("last_heartbeat_at"))
         heartbeat_received = age_min is not None and age_min <= HEARTBEAT_STALE_MINUTES
-        
-        # Rule: If NVR/DVR is online (dvr_status == "Online" or dvr_online_count > 0) OR heartbeat received, Device MUST be Online
-        if dvr_status == "Online" or dvr_online_count > 0 or heartbeat_received:
-            device_status_val = "Online"
-            dvr_status_val = "Online"
-        else:
+
+        # Heartbeat freshness gates everything: if no heartbeat has arrived
+        # within HEARTBEAT_STALE_MINUTES, the device (and its NVR/DVR) is
+        # shown offline regardless of what the last cached camera_status said
+        # — a device that's been unreachable for hours can't still be "Online"
+        # just because its last known DVR reading happened to be good.
+        if not heartbeat_received:
             device_status_val = "Offline"
-            dvr_status_val = "Offline" if dvr_status == "Offline" else dvr_status
+            dvr_status_val = "Offline"
+        else:
+            device_status_val = "Online"
+            dvr_status_val = "Online" if (dvr_status == "Online" or dvr_online_count > 0) else dvr_status
 
         records.append({
             "store_code":        r.get("store_code", ""),
