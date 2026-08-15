@@ -37,13 +37,18 @@ Being Human Dashboard
     </div>
   </div>
 
-  <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0;">
-    <div class="card-title">
-      <i class="fa-solid fa-triangle-exclamation" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>
-      Alerts
+  <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0;padding:0;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border);">
+      <div class="card-title" style="margin:0;">
+        <i class="fa-solid fa-triangle-exclamation" style="color:var(--primary);margin-right:6px;font-size:11px;"></i>
+        Alerts
+      </div>
+      <span id="alertCountBadge" class="badge badge-blue">Loading…</span>
     </div>
-    <div id="alertsBody" style="flex:1;overflow-y:auto;min-height:0;">
-      <div class="spinner"></div>
+    <div id="alertsGridWrap" style="flex:1;overflow-y:auto;min-height:0;">
+      <div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:200px;">
+        <div class="spinner"></div>
+      </div>
     </div>
   </div>
 
@@ -51,6 +56,27 @@ Being Human Dashboard
 {% endblock %}
 
 {% block scripts %}
+<style>
+  .pv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+    padding: 16px;
+  }
+  .pv-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg);
+    transition: box-shadow .2s, transform .2s;
+  }
+  .pv-card:hover { box-shadow: 0 4px 14px rgba(15,23,42,0.1); transform: translateY(-2px); }
+  .pv-thumb {
+    aspect-ratio: 16/9; background:#000; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .pv-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+</style>
 <script>
   function todayStr() { return new Date().toISOString().slice(0, 10); }
   function offsetDate(days) {
@@ -112,10 +138,17 @@ Being Human Dashboard
     animateValue(document.getElementById('sc-total'), total);
   }
 
+  function fmtTime(dt) {
+    if (!dt) return '—';
+    const d = new Date(dt.replace(' ', 'T'));
+    if (isNaN(d.getTime())) return dt;
+    return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
   function renderAlerts(alerts) {
-    const body = document.getElementById('alertsBody');
+    const wrap = document.getElementById('alertsGridWrap');
     if (!alerts || alerts.length === 0) {
-      body.innerHTML = `
+      wrap.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:260px;flex-direction:column;gap:12px;color:var(--muted);">
           <i class="fa-solid fa-circle-check" style="font-size:42px;opacity:0.3;color:var(--green);"></i>
           <div style="font-size:14px;font-weight:600;">No alerts</div>
@@ -124,26 +157,24 @@ Being Human Dashboard
       `;
       return;
     }
-    body.innerHTML = `
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Date / Time</th><th>Store</th><th>Camera</th><th>Alert Type</th><th>Image</th></tr>
-          </thead>
-          <tbody>
-            ${alerts.map(a => `
-              <tr>
-                <td>${a.date_time || '-'}</td>
-                <td>${a.store_code || '-'}</td>
-                <td>${a.camera_no || '-'}</td>
-                <td><span class="badge badge-red">${a.alert_type || 'Customer Unattended'}</span></td>
-                <td>${a.image_url ? `<button class="btn btn-outline" style="padding:3px 10px;font-size:11px;" onclick="viewAlertImage('${a.image_url}')"><i class="fa-solid fa-image"></i> View</button>` : '-'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
+    wrap.innerHTML = `<div class="pv-grid">
+      ${alerts.map(a => `
+        <div class="pv-card">
+          <div class="pv-thumb" ${a.image_url ? `onclick="viewAlertImage('${a.image_url}', '${(a.date_time || '').replace(/'/g, '')}')"` : ''}>
+            ${a.image_url
+              ? `<img src="${a.image_url}" alt="Customer unattended alert" loading="lazy">`
+              : `<i class="fa-solid fa-image" style="color:#555;font-size:22px;"></i>`}
+          </div>
+          <div style="padding:9px 11px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+              <span style="font-size:12px;font-weight:600;color:var(--text);">Camera ${a.camera_no != null && a.camera_no !== '' ? a.camera_no : '—'}</span>
+              <span class="badge badge-red" style="font-size:9.5px;">${a.alert_type || 'unattended'}</span>
+            </div>
+            <div style="font-size:11px;color:var(--muted);">${fmtTime(a.date_time)}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
   }
 
   function ensureImageModal() {
@@ -151,16 +182,18 @@ Being Human Dashboard
     if (modal) return modal;
     modal = document.createElement('div');
     modal.id = 'alertImageModal';
-    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:1000;align-items:center;justify-content:center;';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;align-items:center;justify-content:center;';
     modal.innerHTML = `
       <div style="background:#fff;border-radius:8px;padding:12px;max-width:90vw;max-height:90vh;position:relative;">
         <button onclick="closeAlertImageModal()" style="position:absolute;top:-14px;right:-14px;width:28px;height:28px;border-radius:50%;border:none;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:pointer;font-size:14px;">✕</button>
+        <div id="alertImageModalCaption" style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;"></div>
         <div id="alertImageModalBody" style="min-width:200px;min-height:150px;display:flex;align-items:center;justify-content:center;">
           <div class="spinner"></div>
         </div>
       </div>
     `;
     modal.addEventListener('click', (e) => { if (e.target === modal) closeAlertImageModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAlertImageModal(); });
     document.body.appendChild(modal);
     return modal;
   }
@@ -168,11 +201,12 @@ Being Human Dashboard
     const modal = document.getElementById('alertImageModal');
     if (modal) modal.style.display = 'none';
   }
-  function viewAlertImage(url) {
+  function viewAlertImage(url, caption) {
     const modal = ensureImageModal();
-    const bodyEl = document.getElementById('alertImageModalBody');
+    document.getElementById('alertImageModalCaption').textContent = caption || '';
+    document.getElementById('alertImageModalBody').innerHTML =
+      `<img src="${url}" style="max-width:85vw;max-height:80vh;display:block;border-radius:4px;" onerror="this.parentNode.innerHTML='<div style=&quot;color:var(--muted);font-size:13px;padding:20px;&quot;>Failed to load image.</div>'" />`;
     modal.style.display = 'flex';
-    bodyEl.innerHTML = `<img src="${url}" style="max-width:85vw;max-height:80vh;display:block;border-radius:4px;" onerror="this.parentNode.innerHTML='<div style=&quot;color:var(--muted);font-size:13px;padding:20px;&quot;>Failed to load image.</div>'" />`;
   }
 
   async function loadAlerts() {
@@ -181,9 +215,13 @@ Being Human Dashboard
       const d = await res.json();
       renderSummaryChips(d.total || 0);
       renderAlerts(d.alerts || []);
+      document.getElementById('alertCountBadge').textContent = `${d.total || 0} Alerts`;
+      document.getElementById('alertCountBadge').className = (d.total || 0) > 0 ? 'badge badge-red' : 'badge badge-green';
     } catch (e) {
       document.getElementById('summaryChips').innerHTML =
         '<span style="color:var(--red);font-size:12px;">Failed to load</span>';
+      document.getElementById('alertCountBadge').textContent = 'Error';
+      document.getElementById('alertCountBadge').className = 'badge badge-gray';
       renderAlerts([]);
     }
   }
