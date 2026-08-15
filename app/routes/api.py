@@ -714,7 +714,11 @@ def device_status():
 
         raw_last_heartbeat = r.get("last_heartbeat_at")
         age_min = _minutes_since(raw_last_heartbeat)
-        heartbeat_received = age_min is not None and age_min <= HEARTBEAT_STALE_MINUTES
+        # age_min < 0 means last_heartbeat_at is ahead of our clock (device
+        # clock drift/bad NTP sync, or a timezone mismatch upstream) — a
+        # "heartbeat from the future" is never valid, so it must not count
+        # as received no matter how small the (impossible) gap looks.
+        heartbeat_received = age_min is not None and 0 <= age_min <= HEARTBEAT_STALE_MINUTES
         print(
             f"[DEVICE-STATUS] store={r.get('store_code')} "
             f"last_heartbeat_at={raw_last_heartbeat!r} "
