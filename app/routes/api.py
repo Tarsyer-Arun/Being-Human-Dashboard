@@ -681,7 +681,7 @@ def device_status():
     store_code = request.args.get("store_code", "").strip()
     allowed = get_allowed_stores()
 
-    match = {"project_name": "BeingHuman"}
+    match = {"project_name": {"$regex": "^BeingHuman$", "$options": "i"}}
     if store_code and store_code.lower() != "all":
         match["store_code"] = store_code
     elif allowed:
