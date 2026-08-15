@@ -388,6 +388,7 @@ def customer_unattended():
         "response":    r.get("response", ""),
         "image_url":   r.get("image_url", ""),
     } for r in rows]
+    sign_field(alerts)
 
     return jsonify({"alerts": alerts, "total": total, "date_from": date_from, "date_to": date_to})
 
