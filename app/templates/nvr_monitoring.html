@@ -208,15 +208,6 @@
       const res = await fetch(`/api/device-status?${storeParams()}`);
       const d   = await res.json();
 
-      // NVR online rule: if NVR cameras are online, force device online too
-      if (d && d.configured && d.records) {
-        d.records.forEach(r => {
-          if (r.dvr_nvr_status === 'Online') r.device_status = 'Online';
-        });
-        d.devices_offline  = d.records.filter(r => r.device_status  !== 'Online').length;
-        d.dvr_nvr_offline  = d.records.filter(r => r.dvr_nvr_status !== 'Online').length;
-      }
-
       renderKpis(d);
       renderTable(d && d.records ? d.records : []);
 

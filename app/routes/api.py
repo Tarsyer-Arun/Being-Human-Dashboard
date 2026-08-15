@@ -712,8 +712,18 @@ def device_status():
         if dvr_online_count > 0 or dvr_status == "Online":
             dvr_status = "Online"
 
-        age_min = _minutes_since(r.get("last_heartbeat_at"))
+        raw_last_heartbeat = r.get("last_heartbeat_at")
+        age_min = _minutes_since(raw_last_heartbeat)
         heartbeat_received = age_min is not None and age_min <= HEARTBEAT_STALE_MINUTES
+        print(
+            f"[DEVICE-STATUS] store={r.get('store_code')} "
+            f"last_heartbeat_at={raw_last_heartbeat!r} "
+            f"now_utc={datetime.utcnow().isoformat()} "
+            f"age_min={age_min} "
+            f"threshold={HEARTBEAT_STALE_MINUTES} "
+            f"heartbeat_received={heartbeat_received}",
+            flush=True,
+        )
 
         # Heartbeat freshness gates everything: if no heartbeat has arrived
         # within HEARTBEAT_STALE_MINUTES, the device (and its NVR/DVR) is
