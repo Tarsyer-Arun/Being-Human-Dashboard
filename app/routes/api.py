@@ -668,6 +668,37 @@ def nvr_images():
 # window — a "last known" status of Online from a stale record is misleading.
 HEARTBEAT_STALE_MINUTES = 180
 
+# Online/offline is driven by footfall data recency rather than the device's
+# own heartbeat timestamp: heartbeat timestamps come from the device clock and
+# have been seen drifting hours ahead of real UTC (BH-01/BH-02), which made
+# them useless for staleness. A store that is still writing footfall rows is
+# demonstrably alive.
+FOOTFALL_STALE_MINUTES = 45
+
+
+def _parse_footfall_dt(value):
+    """Parse a footfall date_time string into a naive UTC datetime.
+
+    Footfall rows store local (IST) wall-clock strings. Both the dashed
+    ('2026-08-16 15:24:26') and compact ('20260816_152426_123456') forms are
+    accepted; anything unparseable yields None so the caller treats the store
+    as having no usable reading.
+    """
+    if not value:
+        return None
+    if hasattr(value, "isoformat"):          # already a datetime
+        return value.replace(tzinfo=None) if getattr(value, "tzinfo", None) else value
+    text = str(value).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y%m%d_%H%M%S"):
+        try:
+            naive_local = datetime.strptime(text[:len("20260816_152426")] if fmt == "%Y%m%d_%H%M%S" else text[:19], fmt)
+        except ValueError:
+            continue
+        # Stored as IST wall-clock; convert to naive UTC so it can be compared
+        # against datetime.utcnow() the same way every other timestamp here is.
+        return IST.localize(naive_local).astimezone(pytz.utc).replace(tzinfo=None)
+    return None
+
 @api_bp.route("/device-status")
 @login_required_api
 def device_status():
@@ -712,6 +743,20 @@ def device_status():
         for hb in hb_db.recurring_data.aggregate(hb_pipeline):
             latest_server_received[hb["_id"]] = hb.get("server_received_at")
 
+    # Latest footfall row per store — this, not the heartbeat, decides
+    # online/offline (see FOOTFALL_STALE_MINUTES).
+    ff_match = {}
+    if store_code and store_code.lower() != "all":
+        ff_match["store_code"] = store_code
+    elif allowed:
+        ff_match["store_code"] = {"$in": allowed}
+    latest_footfall = {}
+    for ff in get_bh_db().footfall.aggregate(
+        ([{"$match": ff_match}] if ff_match else []) +
+        [{"$group": {"_id": "$store_code", "last_dt": {"$max": "$date_time"}}}]
+    ):
+        latest_footfall[ff["_id"]] = ff.get("last_dt")
+
     records = []
     for r in ds_db.device_latest_status.aggregate(pipeline):
         svc_map = r.get("interval_services_active_status") or {}
@@ -730,31 +775,28 @@ def device_status():
             dvr_status = "Online"
 
         store = r.get("store_code")
-        raw_last_heartbeat = latest_server_received.get(store) or r.get("last_heartbeat_at")
-        heartbeat_source = "recurring_data.server_received_at" if store in latest_server_received else "device_latest_status.last_heartbeat_at (fallback)"
-        age_min = _minutes_since(raw_last_heartbeat)
-        # age_min < 0 means last_heartbeat_at is ahead of our clock (device
-        # clock drift/bad NTP sync, or a timezone mismatch upstream) — a
-        # "heartbeat from the future" is never valid, so it must not count
-        # as received no matter how small the (impossible) gap looks.
-        heartbeat_received = age_min is not None and 0 <= age_min <= HEARTBEAT_STALE_MINUTES
+        raw_last_footfall = latest_footfall.get(store)
+        footfall_dt = _parse_footfall_dt(raw_last_footfall)
+        age_min = _minutes_since(footfall_dt)
+        # A negative age means the row is timestamped ahead of our clock, which
+        # is never valid — treat it as no usable reading rather than "fresh".
+        footfall_recent = age_min is not None and 0 <= age_min <= FOOTFALL_STALE_MINUTES
         print(
             f"[DEVICE-STATUS] store={store} "
-            f"source={heartbeat_source} "
-            f"last_heartbeat_at={raw_last_heartbeat!r} "
+            f"last_footfall_dt={raw_last_footfall!r} "
+            f"parsed_utc={footfall_dt.isoformat() if footfall_dt else None} "
             f"now_utc={datetime.utcnow().isoformat()} "
             f"age_min={age_min} "
-            f"threshold={HEARTBEAT_STALE_MINUTES} "
-            f"heartbeat_received={heartbeat_received}",
+            f"threshold={FOOTFALL_STALE_MINUTES} "
+            f"footfall_recent={footfall_recent}",
             flush=True,
         )
 
-        # Heartbeat freshness gates everything: if no heartbeat has arrived
-        # within HEARTBEAT_STALE_MINUTES, the device (and its NVR/DVR) is
-        # shown offline regardless of what the last cached camera_status said
-        # — a device that's been unreachable for hours can't still be "Online"
-        # just because its last known DVR reading happened to be good.
-        if not heartbeat_received:
+        # Footfall recency gates everything: no footfall row in the last
+        # FOOTFALL_STALE_MINUTES means the store isn't producing data, so the
+        # device (and its NVR/DVR) is shown offline regardless of what the
+        # last cached camera_status said.
+        if not footfall_recent:
             device_status_val = "Offline"
             dvr_status_val = "Offline"
         else:
@@ -771,7 +813,9 @@ def device_status():
             "serial_id":         str(r.get("_id", "")),
             "dvr_online_count":  r.get("dvr_online_count"),
             "dvr_total_count":   r.get("dvr_total_count"),
-            "last_heartbeat_at": _iso(raw_last_heartbeat),
+            # The timestamp that actually drove the status above, so the table
+            # can't show a time that disagrees with the Online/Offline pill.
+            "last_heartbeat_at": _iso(footfall_dt),
         })
 
     records.sort(key=lambda r: (r["device_status"] != "Online", r["store_code"]))

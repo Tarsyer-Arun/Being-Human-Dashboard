@@ -21,21 +21,11 @@
     </div>
     <div class="stat-card">
       <div class="stat-label"><i class="fa-solid fa-microchip" style="margin-right:4px;"></i>Device Status</div>
-      <div class="stat-value">
-        <span id="kpiDevicesOnline" style="color:var(--green);">—</span
-        ><span style="color:var(--muted);font-weight:400;"> / </span
-        ><span id="kpiDevicesOffline" style="color:var(--red);">—</span>
-      </div>
-      <div class="stat-sub">Online / Offline</div>
+      <div class="stat-value" id="kpiDeviceStatus">—</div>
     </div>
     <div class="stat-card">
       <div class="stat-label"><i class="fa-solid fa-video" style="margin-right:4px;"></i>NVR Status</div>
-      <div class="stat-value">
-        <span id="kpiNvrOnline" style="color:var(--green);">—</span
-        ><span style="color:var(--muted);font-weight:400;"> / </span
-        ><span id="kpiNvrOffline" style="color:var(--red);">—</span>
-      </div>
-      <div class="stat-sub">Online / Offline</div>
+      <div class="stat-value" id="kpiNvrStatus">—</div>
     </div>
   </div>
 
@@ -55,7 +45,7 @@
             <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">#</th>
             <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Store Code</th>
             <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Hostname</th>
-            <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Last Heartbeat</th>
+            <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Last Footfall Data</th>
             <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">CPU Temp</th>
             <th style="padding:9px 16px;text-align:center;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Device Status</th>
             <th style="padding:9px 16px;text-align:center;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">NVR Status</th>
@@ -173,17 +163,33 @@
     const nvrOff   = (d && d.configured) ? (d.dvr_nvr_offline || 0) : 0;
     const nvrOn    = devTotal - nvrOff;
 
+    // Single device (the usual case when a store is selected) reads as a
+    // plain Online/Offline word; multiple devices fall back to a count so
+    // the card still says something meaningful.
+    function setStatusCard(id, onlineCount, total) {
+      const el = document.getElementById(id);
+      if (total === 0) { el.textContent = '—'; el.style.color = ''; return; }
+      if (total === 1) {
+        const online = onlineCount === 1;
+        el.textContent = online ? 'Online' : 'Offline';
+        el.style.color = online ? 'var(--green)' : 'var(--red)';
+      } else {
+        el.textContent = `${onlineCount} Online`;
+        el.style.color = onlineCount === total ? 'var(--green)' : 'var(--red)';
+      }
+    }
+
     if (d && d.configured) {
-      document.getElementById('kpiTotalDevices').textContent   = devTotal;
-      document.getElementById('kpiDevicesOnline').textContent  = devOn;
-      document.getElementById('kpiDevicesOffline').textContent = devOff;
-      document.getElementById('kpiNvrOnline').textContent      = nvrOn;
-      document.getElementById('kpiNvrOffline').textContent     = nvrOff;
-      document.getElementById('tableCountBadge').textContent   = `${devOn}/${devTotal} Devices Online`;
-      document.getElementById('tableCountBadge').className     = devOff > 0 ? 'badge badge-red' : 'badge badge-green';
+      document.getElementById('kpiTotalDevices').textContent = devTotal;
+      setStatusCard('kpiDeviceStatus', devOn, devTotal);
+      setStatusCard('kpiNvrStatus', nvrOn, devTotal);
+      document.getElementById('tableCountBadge').textContent = `${devOn}/${devTotal} Devices Online`;
+      document.getElementById('tableCountBadge').className   = devOff > 0 ? 'badge badge-red' : 'badge badge-green';
     } else {
-      ['kpiTotalDevices','kpiDevicesOnline','kpiDevicesOffline','kpiNvrOnline','kpiNvrOffline'].forEach(id => {
-        document.getElementById(id).textContent = 'N/A';
+      ['kpiTotalDevices','kpiDeviceStatus','kpiNvrStatus'].forEach(id => {
+        const el = document.getElementById(id);
+        el.textContent = 'N/A';
+        el.style.color = '';
       });
       document.getElementById('tableCountBadge').textContent = 'DB not configured';
       document.getElementById('tableCountBadge').className   = 'badge badge-gray';
