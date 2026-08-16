@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, session, Response
 from datetime import datetime, timedelta
-from ..db import get_bh_db, get_devices_summary_db
+from ..db import get_bh_db, get_devices_summary_db, get_devices_heartbeat_db
 from ..gcs import sign_field
 import pytz
 import io
@@ -695,6 +695,23 @@ def device_status():
         {"$sort": {"_id": 1}},
     ]
 
+    # last_heartbeat_at on device_latest_status is set from the device's own
+    # clock and can drift (seen on BH-02 — stored timestamps ran ~2h ahead of
+    # real UTC). recurring_data.server_received_at is stamped by our own
+    # server on receipt instead, so it's used as the source of truth for
+    # online/offline whenever it's available; device_latest_status stays the
+    # fallback for a store with no recurring_data hits yet.
+    latest_server_received = {}
+    hb_db = get_devices_heartbeat_db()
+    if hb_db is not None:
+        hb_pipeline = [
+            {"$match": match},
+            {"$sort": {"server_received_at": -1}},
+            {"$group": {"_id": "$store_code", "server_received_at": {"$first": "$server_received_at"}}},
+        ]
+        for hb in hb_db.recurring_data.aggregate(hb_pipeline):
+            latest_server_received[hb["_id"]] = hb.get("server_received_at")
+
     records = []
     for r in ds_db.device_latest_status.aggregate(pipeline):
         svc_map = r.get("interval_services_active_status") or {}
@@ -712,7 +729,9 @@ def device_status():
         if dvr_online_count > 0 or dvr_status == "Online":
             dvr_status = "Online"
 
-        raw_last_heartbeat = r.get("last_heartbeat_at")
+        store = r.get("store_code")
+        raw_last_heartbeat = latest_server_received.get(store) or r.get("last_heartbeat_at")
+        heartbeat_source = "recurring_data.server_received_at" if store in latest_server_received else "device_latest_status.last_heartbeat_at (fallback)"
         age_min = _minutes_since(raw_last_heartbeat)
         # age_min < 0 means last_heartbeat_at is ahead of our clock (device
         # clock drift/bad NTP sync, or a timezone mismatch upstream) — a
@@ -720,7 +739,8 @@ def device_status():
         # as received no matter how small the (impossible) gap looks.
         heartbeat_received = age_min is not None and 0 <= age_min <= HEARTBEAT_STALE_MINUTES
         print(
-            f"[DEVICE-STATUS] store={r.get('store_code')} "
+            f"[DEVICE-STATUS] store={store} "
+            f"source={heartbeat_source} "
             f"last_heartbeat_at={raw_last_heartbeat!r} "
             f"now_utc={datetime.utcnow().isoformat()} "
             f"age_min={age_min} "
@@ -751,7 +771,7 @@ def device_status():
             "serial_id":         str(r.get("_id", "")),
             "dvr_online_count":  r.get("dvr_online_count"),
             "dvr_total_count":   r.get("dvr_total_count"),
-            "last_heartbeat_at": _iso(r.get("last_heartbeat_at")),
+            "last_heartbeat_at": _iso(raw_last_heartbeat),
         })
 
     records.sort(key=lambda r: (r["device_status"] != "Online", r["store_code"]))

@@ -60,3 +60,15 @@ def get_devices_summary_db():
     if _ds_client is None:
         return None
     return _ds_client[_ds_db_name]
+
+
+def get_devices_heartbeat_db():
+    """Read-only handle to the devices_heartbeat DB (recurring_data collection).
+
+    Same MongoDB server/cluster as devices_summary, so it reuses that client —
+    only the database name differs. None if devices_summary isn't configured.
+    """
+    if _ds_client is None:
+        return None
+    db_name = os.environ.get("DS_HEARTBEAT_DB_NAME", "devices_heartbeat")
+    return _ds_client[db_name]
