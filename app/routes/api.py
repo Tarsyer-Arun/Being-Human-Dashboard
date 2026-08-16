@@ -666,7 +666,7 @@ def nvr_images():
 # ─────────────────────────────────────────────
 # A device counts as online only if we've received a heartbeat within this
 # window — a "last known" status of Online from a stale record is misleading.
-HEARTBEAT_STALE_MINUTES = 30
+HEARTBEAT_STALE_MINUTES = 180
 
 @api_bp.route("/device-status")
 @login_required_api
