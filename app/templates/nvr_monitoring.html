@@ -44,15 +44,13 @@
           <tr style="background:var(--bg);">
             <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">#</th>
             <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Store Code</th>
-            <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Hostname</th>
-            <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Last Footfall Data</th>
             <th style="padding:9px 16px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">CPU Temp</th>
             <th style="padding:9px 16px;text-align:center;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">Device Status</th>
             <th style="padding:9px 16px;text-align:center;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">NVR Status</th>
           </tr>
         </thead>
         <tbody id="statusTableBody">
-          <tr><td colspan="7" style="padding:40px;text-align:center;color:var(--muted);"><div class="spinner" style="margin:0 auto;"></div></td></tr>
+          <tr><td colspan="5" style="padding:40px;text-align:center;color:var(--muted);"><div class="spinner" style="margin:0 auto;"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -133,7 +131,7 @@
   function renderTable(records) {
     const tbody = document.getElementById('statusTableBody');
     if (!records || records.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--muted);">
+      tbody.innerHTML = `<tr><td colspan="5" style="padding:40px;text-align:center;color:var(--muted);">
         <i class="fa-solid fa-satellite-dish" style="font-size:24px;opacity:0.3;display:block;margin-bottom:8px;"></i>
         No heartbeat data for this store.
       </td></tr>`;
@@ -147,8 +145,6 @@
       return `<tr style="${rowBg}">
         <td style="color:var(--muted);font-size:12px;">${i + 1}</td>
         <td><strong style="color:var(--text);">${r.store_code || '—'}</strong></td>
-        <td style="color:var(--muted);font-size:12px;">${r.hostname || '—'}</td>
-        <td style="font-size:12px;color:var(--muted);">${fmtTime(r.last_heartbeat_at)}</td>
         <td style="font-size:12px;">${r.temperature != null ? `<span style="color:var(--text);">${Number(r.temperature).toFixed(1)}°C</span>` : '<span style="color:var(--muted);">—</span>'}</td>
         <td style="text-align:center;">${statusPill(r.device_status)}</td>
         <td style="text-align:center;">${statusPill(r.dvr_nvr_status)}</td>

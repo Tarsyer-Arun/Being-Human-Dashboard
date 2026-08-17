@@ -803,6 +803,12 @@ def device_status():
             device_status_val = "Online"
             dvr_status_val = "Online" if (dvr_status == "Online" or dvr_online_count > 0) else dvr_status
 
+        # Online/offline is decided by footfall recency above, but the table's
+        # displayed time is the actual last heartbeat received — server-stamped
+        # recurring_data.server_received_at when available, else the device's
+        # own last_heartbeat_at — not the footfall timestamp that drove status.
+        received_at = latest_server_received.get(store) or r.get("last_heartbeat_at")
+
         records.append({
             "store_code":        r.get("store_code", ""),
             "hostname":          r.get("hostname", ""),
@@ -813,9 +819,7 @@ def device_status():
             "serial_id":         str(r.get("_id", "")),
             "dvr_online_count":  r.get("dvr_online_count"),
             "dvr_total_count":   r.get("dvr_total_count"),
-            # The timestamp that actually drove the status above, so the table
-            # can't show a time that disagrees with the Online/Offline pill.
-            "last_heartbeat_at": _iso(footfall_dt),
+            "last_heartbeat_at": _iso(received_at),
         })
 
     records.sort(key=lambda r: (r["device_status"] != "Online", r["store_code"]))
