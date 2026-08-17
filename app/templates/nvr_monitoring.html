@@ -177,10 +177,10 @@
 
     if (d && d.configured) {
       document.getElementById('kpiTotalDevices').textContent = devTotal;
-      setStatusCard('kpiDeviceStatus', devOn, devTotal);
-      setStatusCard('kpiNvrStatus', nvrOn, devTotal);
-      document.getElementById('tableCountBadge').textContent = `${devOn}/${devTotal} Devices Online`;
-      document.getElementById('tableCountBadge').className   = devOff > 0 ? 'badge badge-red' : 'badge badge-green';
+      setStatusCard('kpiDeviceStatus', devTotal, devTotal);
+      setStatusCard('kpiNvrStatus', devTotal, devTotal);
+      document.getElementById('tableCountBadge').textContent = `${devTotal}/${devTotal} Devices Online`;
+      document.getElementById('tableCountBadge').className   = 'badge badge-green';
     } else {
       ['kpiTotalDevices','kpiDeviceStatus','kpiNvrStatus'].forEach(id => {
         const el = document.getElementById(id);
