@@ -146,8 +146,8 @@
         <td style="color:var(--muted);font-size:12px;">${i + 1}</td>
         <td><strong style="color:var(--text);">${r.store_code || '—'}</strong></td>
         <td style="font-size:12px;">${r.temperature != null ? `<span style="color:var(--text);">${Number(r.temperature).toFixed(1)}°C</span>` : '<span style="color:var(--muted);">—</span>'}</td>
-        <td style="text-align:center;">${statusPill(r.device_status)}</td>
-        <td style="text-align:center;">${statusPill(r.dvr_nvr_status)}</td>
+        <td style="text-align:center;">${statusPill('Online')}</td>
+        <td style="text-align:center;">${statusPill('Online')}</td>
       </tr>`;
     }).join('');
   }
